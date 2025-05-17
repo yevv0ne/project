@@ -5,6 +5,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <link rel="stylesheet" href="design.css">
+    <script src="api.js"></script>
 </head>
 <body>
     <h1>PlacePick</h1>
@@ -164,24 +165,10 @@
                 resultDiv.style.display = 'none';
                 errorMessage.style.display = 'none';
 
-                const result = await Tesseract.recognize(
-                    selectedImage,
-                    'kor+eng',
-                    {
-                        logger: m => console.log(m),
-                        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣ㄱ-ㅎㅏ-ㅣ!@#$%^&*()_+-=[]{}|;:,.<>?/~` ',
-                        tessedit_pageseg_mode: '1',
-                        tessjs_create_pdf: '0',
-                        tessjs_create_hocr: '0',
-                        tessjs_create_tsv: '0',
-                        tessjs_create_box: '0',
-                        tessjs_create_unlv: '0',
-                        tessjs_create_osd: '0'
-                    }
-                );
+                // OCR.space API 호출
+                const text = await ocrSpaceImage(selectedImage, 'kor');
 
                 // 추출된 텍스트에서 해시태그 분리
-                const text = result.data.text;
                 const hashtags = text.match(/#[\w가-힣]+/g) || [];
                 const mainText = text.replace(/#[\w가-힣]+/g, '').trim();
 

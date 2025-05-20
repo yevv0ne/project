@@ -5,6 +5,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <link rel="stylesheet" href="design.css">
+    <script src="api.js"></script>
 </head>
 <body>
     <h1>PlacePick</h1>
@@ -15,7 +16,7 @@
             <label for="imageInput" class="file-input-label">이미지 선택하기</label>
         </div>
         <img id="previewImage" class="preview-image" alt="미리보기">
-        <button id="extractButton" class="extract-button" onclick="extractText()">텍스트 추출하기</button>
+        <button id="extractButton" class="extract-button" onclick="extractText()">장소 추출하기</button>
     </div>
 
     <div class="or-divider">
@@ -24,7 +25,7 @@
 
     <div class="input-container">
         <input type="text" id="instaLink" placeholder="인스타그램 포스트 링크를 붙여주세요..." size="50">
-        <button onclick="extractContent()">텍스트 추출하기</button>
+        <button onclick="extractContent()">장소 추출하기</button>
         <div class="help-text">
             인스타그램 포스트나 릴스의 링크를 붙여넣어 텍스트를 추출할 수 있습니다.
         </div>
@@ -38,10 +39,11 @@
     <div class="error-message" id="errorMessage"></div>
 
     <div id="result">
-        <h3>추출된 내용</h3>
+        <h3>추출된 장소 정보</h3>
         <div class="post-content">
-            <div class="post-text" id="postText">-</div>
-            <div class="hashtags" id="hashtags">-</div>
+            <div class="locations-container">
+                <div id="locations">-</div>
+            </div>
         </div>
         <button class="copy-button" onclick="copyToClipboard()">복사하기</button>
     </div>
@@ -84,12 +86,11 @@
 
                 const data = await response.json();
 
-                if (data.success) {
-                    document.getElementById("postText").innerText = data.data.text;
-                    document.getElementById("hashtags").innerText = data.data.hashtags;
+                if (data.success && data.data) {
+                    document.getElementById("locations").innerHTML = formatLocations(data.data.locations || []);
                     resultDiv.style.display = 'block';
                 } else {
-                    throw new Error(data.error || '포스트 내용을 가져오는데 실패했습니다.');
+                    showError(data.error || '포스트 내용을 가져오는데 실패했습니다.');
                 }
 
             } catch (error) {
@@ -121,12 +122,14 @@
         }
 
         function copyToClipboard() {
-            const postText = document.getElementById("postText").innerText;
-            const hashtags = document.getElementById("hashtags").innerText;
-            const fullText = postText + '\n\n' + hashtags;
+            const locations = Array.from(document.querySelectorAll('.location-item'))
+                .map(item => item.querySelector('.location-name').textContent)
+                .join(', ');
+            
+            const fullText = '장소: ' + locations;
             
             navigator.clipboard.writeText(fullText).then(() => {
-                alert('포스트 내용이 클립보드에 복사되었습니다!');
+                alert('장소 정보가 클립보드에 복사되었습니다!');
             });
         }
 
@@ -164,36 +167,69 @@
                 resultDiv.style.display = 'none';
                 errorMessage.style.display = 'none';
 
-                const result = await Tesseract.recognize(
-                    selectedImage,
-                    'kor+eng',
-                    {
-                        logger: m => console.log(m),
-                        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣ㄱ-ㅎㅏ-ㅣ!@#$%^&*()_+-=[]{}|;:,.<>?/~` ',
-                        tessedit_pageseg_mode: '1',
-                        tessjs_create_pdf: '0',
-                        tessjs_create_hocr: '0',
-                        tessjs_create_tsv: '0',
-                        tessjs_create_box: '0',
-                        tessjs_create_unlv: '0',
-                        tessjs_create_osd: '0'
-                    }
-                );
+                // OCR.space API를 사용하여 텍스트 추출
+                const extractedText = await ocrSpaceImage(selectedImage);
+                console.log('Extracted text:', extractedText); // 디버깅용
 
-                // 추출된 텍스트에서 해시태그 분리
-                const text = result.data.text;
-                const hashtags = text.match(/#[\w가-힣]+/g) || [];
-                const mainText = text.replace(/#[\w가-힣]+/g, '').trim();
+                // 추출된 텍스트를 서버로 전송하여 장소 정보 추출
+                const response = await fetch('http://localhost:3000/extract-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: extractedText })
+                });
 
-                document.getElementById("postText").innerText = mainText;
-                document.getElementById("hashtags").innerText = hashtags.join(' ');
-                resultDiv.style.display = 'block';
+                const data = await response.json();
+                console.log('Server response:', data); // 디버깅용
+
+                if (data.success && data.data) {
+                    document.getElementById("locations").innerHTML = formatLocations(data.data.locations || []);
+                    resultDiv.style.display = 'block';
+                } else {
+                    showError(data.error || '이미지에서 장소 정보를 추출하지 못했습니다.');
+                }
 
             } catch (error) {
+                console.error('Error:', error); // 디버깅용
                 showError(error.message);
             } finally {
                 loadingDiv.style.display = 'none';
             }
+        }
+
+        function formatLocations(locations) {
+            if (!locations || locations.length === 0) return '-';
+            
+            return locations.map(loc => {
+                let locationHtml = `<div class="location-item">
+                    <span class="location-name">${loc.name}</span>
+                    <span class="location-type">(${getLocationTypeName(loc.type)})</span>`;
+                
+                if (loc.coordinates) {
+                    locationHtml += `<span class="location-coordinates">
+                        [위도: ${loc.coordinates.lat}, 경도: ${loc.coordinates.lng}]
+                    </span>`;
+                }
+                
+                locationHtml += '</div>';
+                return locationHtml;
+            }).join('');
+        }
+
+        function getLocationTypeName(type) {
+            const typeNames = {
+                'cafe': '카페',
+                'restaurant': '식당',
+                'accommodation': '숙박',
+                'attraction': '관광지',
+                'transportation': '교통',
+                'medical': '의료',
+                'education': '교육',
+                'shopping': '쇼핑',
+                'other': '기타'
+            };
+            return typeNames[type] || '기타';
         }
 
         // Enter 키로도 추출 가능하도록 설정

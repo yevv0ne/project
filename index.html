@@ -1,207 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
     <title>PlacePick</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-    <link rel="stylesheet" href="design.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f4f6fb;
+        }
+        .upload-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
+            background: #fff;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 1rem;
+            display: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(149,117,205,0.10);
+        }
+        .result-container {
+            margin-top: 2rem;
+            display: none;
+            background: #fcf8ff;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(149,117,205,0.08);
+            padding: 2rem 1rem;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .btn-outline-primary, .btn-primary {
+            background: #b39ddb;
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            border-radius: 18px;
+            font-size: 1.1em;
+            padding: 0.8em 0;
+            transition: background 0.2s;
+        }
+        .btn-outline-primary:hover, .btn-primary:hover {
+            background: #9575cd;
+            color: #fff;
+        }
+        .btn-check:checked + .btn-outline-primary {
+            background: #9575cd;
+            color: #fff;
+        }
+        .form-control {
+            border-radius: 16px;
+            border: 2px solid #ede7f6;
+            background: #f8f5ff;
+        }
+        .form-control:focus {
+            border-color: #b39ddb;
+            box-shadow: 0 0 0 0.15rem rgba(149,117,205,0.15);
+        }
+        .list-group-item {
+            border: none;
+            background: #fff;
+            border-radius: 12px !important;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #333;
+            box-shadow: 0 1px 4px rgba(149,117,205,0.04);
+        }
+        .badge {
+            background-color: #b39ddb;
+        }
+        .spinner-border.text-primary {
+            color: #b39ddb !important;
+        }
+        h2, h4 {
+            color: #6f42c1;
+            font-weight: 700;
+        }
+        .copy-btn, #processButton {
+            background: #b39ddb;
+            border: none;
+            color: #fff;
+            border-radius: 18px;
+            font-size: 1.1em;
+            font-weight: 600;
+            padding: 0.8em 0;
+            width: 100%;
+            margin-top: 1.5rem;
+            transition: background 0.2s;
+        }
+        .copy-btn:hover, #processButton:hover {
+            background: #9575cd;
+        }
+    </style>
+    <!-- 네이버 지도 API 수정 -->
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=bcpkgzjrua&submodules=geocoder"></script>
 </head>
 <body>
-    <h1>PlacePick</h1>
+    <div class="container">
+        <div class="upload-container">
+            <h2 class="text-center mb-4">PlacePick</h2>
+            
+            <!-- 입력 방식 선택 -->
+            <div class="mb-4">
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="inputType" id="imageInput" checked>
+                    <label class="btn btn-outline-primary" for="imageInput">이미지 업로드</label>
+                    
+                    <input type="radio" class="btn-check" name="inputType" id="urlInput">
+                    <label class="btn btn-outline-primary" for="urlInput">URL 입력</label>
+                </div>
+            </div>
 
-    <div class="upload-container">
-        <div class="file-input-wrapper">
-            <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
-            <label for="imageInput" class="file-input-label">이미지 선택하기</label>
+            <!-- 이미지 업로드 섹션 -->
+            <div id="imageUploadSection">
+                <div class="mb-3">
+                    <label for="imageFile" class="form-label">이미지 파일 선택</label>
+                    <input type="file" class="form-control" id="imageFile" accept="image/*">
+                </div>
+                <img id="imagePreview" class="preview-image">
+            </div>
+
+            <!-- URL 입력 섹션 -->
+            <div id="urlInputSection" style="display: none;">
+                <div class="mb-3">
+                    <label for="urlInputField" class="form-label">웹 페이지 URL</label>
+                    <input type="url" class="form-control" id="urlInputField" placeholder="https://example.com">
+                </div>
+            </div>
+
+            <div class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">처리 중...</p>
+            </div>
+
+            <div class="result-container">
+                <h4>추출된 장소 정보</h4>
+                <ul id="locationList" class="list-group">
+                </ul>
+                <button class="copy-btn" onclick="copyLocations()">복사하기</button>
+            </div>
+
+            <button id="processButton" class="btn btn-primary w-100 mt-3">처리하기</button>
         </div>
-        <img id="previewImage" class="preview-image" alt="미리보기">
-        <button id="extractButton" class="extract-button" onclick="extractText()">텍스트 추출하기</button>
+
+        <!-- 네이버 지도 컨테이너 추가 -->
+        <div id="map" style="width:100%;height:400px;margin-top:20px;"></div>
     </div>
 
-    <div class="or-divider">
-        <span class="or-text">또는</span>
-    </div>
-
-    <div class="input-container">
-        <input type="text" id="instaLink" placeholder="인스타그램 포스트 링크를 붙여주세요..." size="50">
-        <button onclick="extractContent()">텍스트 추출하기</button>
-        <div class="help-text">
-            인스타그램 포스트나 릴스의 링크를 붙여넣어 텍스트를 추출할 수 있습니다.
-        </div>
-    </div>
-
-    <div class="loading">
-        <div class="loading-spinner"></div>
-        <p>텍스트를 추출하는 중...</p>
-    </div>
-
-    <div class="error-message" id="errorMessage"></div>
-
-    <div id="result">
-        <h3>추출된 내용</h3>
-        <div class="post-content">
-            <div class="post-text" id="postText">-</div>
-            <div class="hashtags" id="hashtags">-</div>
-        </div>
-        <button class="copy-button" onclick="copyToClipboard()">복사하기</button>
-    </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/api.js"></script>
+    <script src="/app.js"></script>
     <script>
-        let selectedImage = null;
-
-        async function extractContent() {
-            const link = document.getElementById("instaLink").value;
-            const loadingDiv = document.querySelector('.loading');
-            const errorMessage = document.getElementById('errorMessage');
-            const resultDiv = document.getElementById("result");
-            
-            if (!link) {
-                showError('링크를 입력해주세요.');
-                return;
-            }
-
-            try {
-                loadingDiv.style.display = 'block';
-                resultDiv.style.display = 'none';
-                errorMessage.style.display = 'none';
-
-                const normalizedUrl = normalizeInstagramUrl(link);
-                if (!normalizedUrl) {
-                    throw new Error('올바른 인스타그램 링크를 입력해주세요.');
-                }
-
-                const response = await fetch('http://localhost:3000/extract', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ url: normalizedUrl })
-                });
-
-                if (!response.ok) {
-                    throw new Error('서버 연결에 실패했습니다. 서버가 실행 중인지 확인해주세요.');
-                }
-
-                const data = await response.json();
-
-                if (data.success) {
-                    document.getElementById("postText").innerText = data.data.text;
-                    document.getElementById("hashtags").innerText = data.data.hashtags;
-                    resultDiv.style.display = 'block';
-                } else {
-                    throw new Error(data.error || '포스트 내용을 가져오는데 실패했습니다.');
-                }
-
-            } catch (error) {
-                showError(error.message);
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
-        }
-
-        function normalizeInstagramUrl(url) {
-            url = url.trim();
-            
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                url = 'https://' + url;
-            }
-
-            if (!url.includes('www.')) {
-                url = url.replace('instagram.com', 'www.instagram.com');
-            }
-
-            return url;
-        }
-
-        function showError(message) {
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.innerText = message;
-            errorMessage.style.display = 'block';
-            document.getElementById("result").style.display = 'none';
-        }
-
-        function copyToClipboard() {
-            const postText = document.getElementById("postText").innerText;
-            const hashtags = document.getElementById("hashtags").innerText;
-            const fullText = postText + '\n\n' + hashtags;
-            
-            navigator.clipboard.writeText(fullText).then(() => {
-                alert('포스트 내용이 클립보드에 복사되었습니다!');
-            });
-        }
-
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const previewImage = document.getElementById('previewImage');
-                previewImage.src = e.target.result;
-                previewImage.style.display = 'block';
-                
-                // 이미지 선택 후 추출 버튼 표시
-                document.getElementById('extractButton').style.display = 'inline-block';
-                
-                // 선택된 이미지 저장
-                selectedImage = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function extractText() {
-            if (!selectedImage) {
-                showError('이미지를 먼저 선택해주세요.');
-                return;
-            }
-
-            const loadingDiv = document.querySelector('.loading');
-            const errorMessage = document.getElementById('errorMessage');
-            const resultDiv = document.getElementById("result");
-            
-            try {
-                loadingDiv.style.display = 'block';
-                resultDiv.style.display = 'none';
-                errorMessage.style.display = 'none';
-
-                const result = await Tesseract.recognize(
-                    selectedImage,
-                    'kor+eng',
-                    {
-                        logger: m => console.log(m),
-                        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣ㄱ-ㅎㅏ-ㅣ!@#$%^&*()_+-=[]{}|;:,.<>?/~` ',
-                        tessedit_pageseg_mode: '1',
-                        tessjs_create_pdf: '0',
-                        tessjs_create_hocr: '0',
-                        tessjs_create_tsv: '0',
-                        tessjs_create_box: '0',
-                        tessjs_create_unlv: '0',
-                        tessjs_create_osd: '0'
-                    }
-                );
-
-                // 추출된 텍스트에서 해시태그 분리
-                const text = result.data.text;
-                const hashtags = text.match(/#[\w가-힣]+/g) || [];
-                const mainText = text.replace(/#[\w가-힣]+/g, '').trim();
-
-                document.getElementById("postText").innerText = mainText;
-                document.getElementById("hashtags").innerText = hashtags.join(' ');
-                resultDiv.style.display = 'block';
-
-            } catch (error) {
-                showError(error.message);
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
-        }
-
-        // Enter 키로도 추출 가능하도록 설정
-        document.getElementById('instaLink').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                extractContent();
-            }
+    function copyLocations() {
+        const items = Array.from(document.querySelectorAll('#locationList li'));
+        const text = items.map(li => li.textContent.trim()).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            alert('장소 정보가 복사되었습니다!');
         });
+    }
     </script>
 </body>
 </html> 

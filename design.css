@@ -190,6 +190,11 @@ input[type="text"]:focus {
     color: #5b5bff;
     margin-top: 10px;
 }
+.locations {
+    color: #ff6b6b;
+    margin-top: 10px;
+    font-weight: 500;
+}
 .copy-button {
     background-color: #d0bcff;
     margin-top: 15px;
@@ -220,4 +225,38 @@ input[type="text"]:focus {
     background-color: #a18cff;
     transform: scale(1.05);
     box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+.locations-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+.locations-container h4 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 1.1em;
+}
+.location-item {
+    margin: 8px 0;
+    padding: 8px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.location-name {
+    font-weight: 500;
+    color: #2c3e50;
+}
+.location-type {
+    margin-left: 8px;
+    color: #666;
+    font-size: 0.9em;
+}
+.location-coordinates {
+    display: block;
+    margin-top: 4px;
+    color: #888;
+    font-size: 0.8em;
+    font-family: monospace;
 } 

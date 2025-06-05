@@ -13,13 +13,33 @@ const Tesseract = require('tesseract.js');
 const app = express();
 
 // CORS 설정
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// 보안 헤더 설정
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
 
 // JSON 파싱 미들웨어
 app.use(express.json());
 
 // 정적 파일 제공 설정
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+    }
+}));
 
 // 파일 업로드를 위한 multer 설정
 const upload = multer({
@@ -37,6 +57,9 @@ const LOCATION_TAGS = ['NNP', 'NNB', 'NNG'];
 
 // OCR API 키
 const API_KEY = 'K89835168188957';
+
+// 네이버 지도 API 클라이언트 ID
+const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'bcpkgzjrua';
 
 // OCR 처리 함수
 async function processOCR(imageBuffer, language = 'kor') {
@@ -190,8 +213,30 @@ function getLocationType(text) {
 
 // 좌표 정보 가져오기 함수
 async function getCoordinates(locationName) {
-    // API 키가 없으므로 임시로 null 반환
-    return null;
+    try {
+        const response = await axios.get('https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode', {
+            params: {
+                query: locationName
+            },
+            headers: {
+                'X-NCP-APIGW-API-KEY-ID': NAVER_CLIENT_ID,
+                'X-NCP-APIGW-API-KEY': process.env.NAVER_CLIENT_SECRET
+            }
+        });
+
+        if (response.data.addresses && response.data.addresses.length > 0) {
+            const address = response.data.addresses[0];
+            return {
+                lat: parseFloat(address.y),
+                lng: parseFloat(address.x),
+                address: address.roadAddress || address.jibunAddress
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('좌표 정보 가져오기 실패:', error);
+        return null;
+    }
 }
 
 // 위치 정보 추출 함수
@@ -236,7 +281,7 @@ async function extractLocation(text) {
 }
 
 // 서버 포트 설정
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
     console.log(`http://localhost:${PORT} 에서 접속 가능합니다.`);

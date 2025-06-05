@@ -100,9 +100,52 @@
         .copy-btn:hover, #processButton:hover {
             background: #9575cd;
         }
+        /* 지도 스타일 */
+        #map {
+            width: 100%;
+            height: 400px;
+            margin-top: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
+            position: relative;
+            overflow: hidden;
+        }
+        .map-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        /* 마커 스타일 */
+        .custom-marker {
+            background-color: #b39ddb;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        /* 정보창 스타일 */
+        .info-window {
+            padding: 10px;
+            min-width: 200px;
+            text-align: center;
+        }
+        .info-window h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            color: #6f42c1;
+        }
+        .info-window p {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .info-window .address {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #999;
+        }
     </style>
-    <!-- 네이버 지도 API 수정 -->
-    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=bcpkgzjrua&submodules=geocoder"></script>
+    <!-- 네이버 지도 API -->
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=cqgZWILuOot3JXIxCH4vcqt6mxIHHgyiyqf9cHUa"></script>
 </head>
 <body>
     <div class="container">
@@ -155,13 +198,24 @@
         </div>
 
         <!-- 네이버 지도 컨테이너 추가 -->
-        <div id="map" style="width:100%;height:400px;margin-top:20px;"></div>
+        <div id="map">
+            <div class="map-container"></div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/api.js"></script>
     <script src="/app.js"></script>
     <script>
+    // 지도 초기화 확인
+    window.addEventListener('load', function() {
+        if (typeof naver !== 'undefined' && naver.maps) {
+            initMap();
+        } else {
+            console.error('네이버 지도 API가 로드되지 않았습니다.');
+        }
+    });
+
     function copyLocations() {
         const items = Array.from(document.querySelectorAll('#locationList li'));
         const text = items.map(li => li.textContent.trim()).join('\n');

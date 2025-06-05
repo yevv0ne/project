@@ -116,24 +116,91 @@ async function processUrl() {
 // 네이버 지도 초기화
 let map;
 let markers = [];
+let infoWindows = [];
 
 function initMap() {
-    // 지도 옵션
-    const mapOptions = {
-        center: new naver.maps.LatLng(37.3595704, 127.105399),
-        zoom: 10,
-        zoomControl: true,
-        zoomControlOptions: {
-            position: naver.maps.Position.TOP_RIGHT
-        }
-    };
+    try {
+        // 지도 옵션
+        const mapOptions = {
+            center: new naver.maps.LatLng(37.3595704, 127.105399),
+            zoom: 10,
+            zoomControl: true,
+            zoomControlOptions: {
+                position: naver.maps.Position.TOP_RIGHT
+            },
+            mapTypeControl: true,
+            mapTypeControlOptions: {
+                position: naver.maps.Position.TOP_LEFT
+            },
+            scaleControl: true,
+            logoControl: true,
+            mapDataControl: true
+        };
 
-    // 지도 생성
-    map = new naver.maps.Map('map', mapOptions);
+        // 지도 생성
+        const mapContainer = document.querySelector('.map-container');
+        map = new naver.maps.Map(mapContainer, mapOptions);
+
+        // 지도 로드 완료 이벤트
+        naver.maps.Event.once(map, 'init', function() {
+            console.log('지도 초기화 완료');
+        });
+
+        // 지도 크기 조정 이벤트
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.refresh();
+            }
+        });
+
+    } catch (error) {
+        console.error('지도 초기화 중 오류 발생:', error);
+    }
 }
 
-// 페이지 로드 시 지도 초기화
-window.addEventListener('load', initMap);
+// 마커 생성 함수
+function createMarker(location) {
+    if (!location.coordinates) return null;
+
+    const position = new naver.maps.LatLng(location.coordinates.lat, location.coordinates.lng);
+    const marker = new naver.maps.Marker({
+        position: position,
+        map: map,
+        title: location.name
+    });
+
+    // 정보창 생성
+    const infoWindow = new naver.maps.InfoWindow({
+        content: `
+            <div style="padding:10px;min-width:200px;text-align:center;">
+                <h3 style="margin:0 0 5px 0;font-size:16px;">${location.name}</h3>
+                <p style="margin:0;font-size:14px;color:#666;">${location.type || '기타'}</p>
+                ${location.coordinates.address ? 
+                    `<p style="margin:5px 0 0 0;font-size:12px;color:#999;">${location.coordinates.address}</p>` 
+                    : ''}
+            </div>
+        `,
+        maxWidth: 300,
+        backgroundColor: "#fff",
+        borderColor: "#b39ddb",
+        borderWidth: 2,
+        anchorSize: new naver.maps.Size(10, 10),
+        anchorSkew: true,
+        anchorColor: "#fff",
+        pixelOffset: new naver.maps.Point(10, -10)
+    });
+
+    // 마커 클릭 이벤트
+    naver.maps.Event.addListener(marker, 'click', () => {
+        // 다른 정보창 닫기
+        infoWindows.forEach(iw => iw.close());
+        // 현재 정보창 열기
+        infoWindow.open(map, marker);
+    });
+
+    infoWindows.push(infoWindow);
+    return marker;
+}
 
 // 기존의 extractLocations 함수 수정
 async function extractLocations(text) {
@@ -155,19 +222,38 @@ async function extractLocations(text) {
         // 기존 마커 제거
         markers.forEach(marker => marker.setMap(null));
         markers = [];
+        infoWindows = [];
 
         // 결과 표시
         resultContainer.style.display = 'block';
         locationList.innerHTML = '';
 
         if (data.locations && data.locations.length > 0) {
+            // 지도 중심점을 첫 번째 위치로 설정
+            if (data.locations[0].coordinates) {
+                map.setCenter(new naver.maps.LatLng(
+                    data.locations[0].coordinates.lat,
+                    data.locations[0].coordinates.lng
+                ));
+            }
+
             data.locations.forEach(location => {
+                // 마커 생성
+                if (location.coordinates) {
+                    const marker = createMarker(location);
+                    if (marker) markers.push(marker);
+                }
+
+                // 리스트 아이템 생성
                 const li = document.createElement('li');
                 li.className = 'list-group-item';
                 li.innerHTML = `
                     <div class="location-item">
                         <span class="location-name">${location.name}</span>
                         <span class="location-type">${location.type || '기타'}</span>
+                        ${location.coordinates ? 
+                            `<p class="location-address">${location.coordinates.address}</p>` 
+                            : ''}
                     </div>
                 `;
                 locationList.appendChild(li);

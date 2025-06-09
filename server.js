@@ -9,12 +9,16 @@ const multer = require('multer');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const Tesseract = require('tesseract.js');
+const enforce = require('express-sslify');
 // const Komoran = require('komoran-js');
 const app = express();
 
+// HTTPS 강제 적용
+app.use(enforce.HTTPS({ trustProtoHeader: true }));
+
 // CORS 설정
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000', 'https://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']

@@ -120,30 +120,26 @@ let infoWindows = [];
 
 function initMap() {
     try {
+        // 기본 위치 (서울시청)
+        const defaultLocation = new naver.maps.LatLng(37.5666805, 126.9784147);
+        
         // 지도 옵션
         const mapOptions = {
-            center: new naver.maps.LatLng(37.3595704, 127.105399),
-            zoom: 10,
+            center: defaultLocation,
+            zoom: 15,
             zoomControl: true,
             zoomControlOptions: {
                 position: naver.maps.Position.TOP_RIGHT
-            },
-            mapTypeControl: true,
-            mapTypeControlOptions: {
-                position: naver.maps.Position.TOP_LEFT
-            },
-            scaleControl: true,
-            logoControl: true,
-            mapDataControl: true
+            }
         };
 
         // 지도 생성
-        const mapContainer = document.querySelector('.map-container');
-        map = new naver.maps.Map(mapContainer, mapOptions);
+        map = new naver.maps.Map('map', mapOptions);
 
         // 지도 로드 완료 이벤트
         naver.maps.Event.once(map, 'init', function() {
             console.log('지도 초기화 완료');
+            map.refresh();
         });
 
         // 지도 크기 조정 이벤트
@@ -163,23 +159,28 @@ function createMarker(location) {
     if (!location.coordinates) return null;
 
     const position = new naver.maps.LatLng(location.coordinates.lat, location.coordinates.lng);
+    
+    // 마커 생성
     const marker = new naver.maps.Marker({
         position: position,
         map: map,
         title: location.name
     });
 
+    // 정보창 내용 생성
+    const contentString = [
+        '<div class="iw_inner">',
+        `   <h3>${location.name}</h3>`,
+        `   <p>${location.type || '기타'}<br />`,
+        location.coordinates.address ? 
+            `       ${location.coordinates.address}<br />` : '',
+        '   </p>',
+        '</div>'
+    ].join('');
+
     // 정보창 생성
     const infoWindow = new naver.maps.InfoWindow({
-        content: `
-            <div style="padding:10px;min-width:200px;text-align:center;">
-                <h3 style="margin:0 0 5px 0;font-size:16px;">${location.name}</h3>
-                <p style="margin:0;font-size:14px;color:#666;">${location.type || '기타'}</p>
-                ${location.coordinates.address ? 
-                    `<p style="margin:5px 0 0 0;font-size:12px;color:#999;">${location.coordinates.address}</p>` 
-                    : ''}
-            </div>
-        `,
+        content: contentString,
         maxWidth: 300,
         backgroundColor: "#fff",
         borderColor: "#b39ddb",
@@ -235,6 +236,7 @@ async function extractLocations(text) {
                     data.locations[0].coordinates.lat,
                     data.locations[0].coordinates.lng
                 ));
+                map.setZoom(15);
             }
 
             data.locations.forEach(location => {

@@ -33,9 +33,9 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // 정적 파일 제공 설정
-app.use(express.static(__dirname, {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.js')) {
+app.use(express.static(path.join(__dirname), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
         }
     }

@@ -1,226 +1,321 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-    <title>PlacePick</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: #f4f6fb;
-        }
-        .upload-container {
-            max-width: 600px;
-            margin: 2rem auto;
-            padding: 2rem;
-            border-radius: 24px;
-            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
-            background: #fff;
-        }
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            margin-top: 1rem;
-            display: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(149,117,205,0.10);
-        }
-        .result-container {
-            margin-top: 2rem;
-            display: none;
-            background: #fcf8ff;
-            border-radius: 20px;
-            box-shadow: 0 2px 12px rgba(149,117,205,0.08);
-            padding: 2rem 1rem;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 1rem 0;
-        }
-        .btn-outline-primary, .btn-primary {
-            background: #b39ddb;
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            border-radius: 18px;
-            font-size: 1.1em;
-            padding: 0.8em 0;
-            transition: background 0.2s;
-        }
-        .btn-outline-primary:hover, .btn-primary:hover {
-            background: #9575cd;
-            color: #fff;
-        }
-        .btn-check:checked + .btn-outline-primary {
-            background: #9575cd;
-            color: #fff;
-        }
-        .form-control {
-            border-radius: 16px;
-            border: 2px solid #ede7f6;
-            background: #f8f5ff;
-        }
-        .form-control:focus {
-            border-color: #b39ddb;
-            box-shadow: 0 0 0 0.15rem rgba(149,117,205,0.15);
-        }
-        .list-group-item {
-            border: none;
-            background: #fff;
-            border-radius: 12px !important;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-            font-weight: 500;
-            color: #333;
-            box-shadow: 0 1px 4px rgba(149,117,205,0.04);
-        }
-        .badge {
-            background-color: #b39ddb;
-        }
-        .spinner-border.text-primary {
-            color: #b39ddb !important;
-        }
-        h2, h4 {
-            color: #6f42c1;
-            font-weight: 700;
-        }
-        .copy-btn, #processButton {
-            background: #b39ddb;
-            border: none;
-            color: #fff;
-            border-radius: 18px;
-            font-size: 1.1em;
-            font-weight: 600;
-            padding: 0.8em 0;
-            width: 100%;
-            margin-top: 1.5rem;
-            transition: background 0.2s;
-        }
-        .copy-btn:hover, #processButton:hover {
-            background: #9575cd;
-        }
-        /* 지도 스타일 */
-        #map {
-            width: 100%;
-            height: 400px;
-            margin-top: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
-            position: relative;
-            overflow: hidden;
-        }
-        .map-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-        /* 마커 스타일 */
-        .custom-marker {
-            background-color: #b39ddb;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        /* 정보창 스타일 */
-        .info-window {
-            padding: 10px;
-            min-width: 200px;
-            text-align: center;
-        }
-        .info-window h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-            color: #6f42c1;
-        }
-        .info-window p {
-            margin: 0;
-            font-size: 14px;
-            color: #666;
-        }
-        .info-window .address {
-            margin-top: 5px;
-            font-size: 12px;
-            color: #999;
-        }
-    </style>
-    <!-- 네이버 지도 API -->
-    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=hk7y7c86pt"></script>
+  <meta charset="UTF-8" />
+  <title>PlacePick</title>
+
+  <!-- Google Fonts 적용: 'Outfit' 폰트 사용 -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+
+  <!-- Tesseract.js (OCR 라이브러리) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+  <!-- 외부 스타일시트 및 JS 파일 로딩 -->
+  <link rel="stylesheet" href="style.css" />
+  <!--여기에 이제, <script src="파일이름.js"></script>가 들어가야 함함-->
 </head>
 <body>
-    <div class="container">
-        <div class="upload-container">
-            <h2 class="text-center mb-4">PlacePick</h2>
-            
-            <!-- 입력 방식 선택 -->
-            <div class="mb-4">
-                <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="inputType" id="imageInput" checked>
-                    <label class="btn btn-outline-primary" for="imageInput">이미지 업로드</label>
-                    
-                    <input type="radio" class="btn-check" name="inputType" id="urlInput">
-                    <label class="btn btn-outline-primary" for="urlInput">URL 입력</label>
-                </div>
-            </div>
+  <!-- 제일 바깥 컨테이너너-->
+  <div class="container">
 
-            <!-- 이미지 업로드 섹션 -->
-            <div id="imageUploadSection">
-                <div class="mb-3">
-                    <label for="imageFile" class="form-label">이미지 파일 선택</label>
-                    <input type="file" class="form-control" id="imageFile" accept="image/*">
-                </div>
-                <img id="imagePreview" class="preview-image">
-            </div>
+    <!-- 메인 제목 영역 -->
+    <h1>PlacePick</h1>
 
-            <!-- URL 입력 섹션 -->
-            <div id="urlInputSection" style="display: none;">
-                <div class="mb-3">
-                    <label for="urlInputField" class="form-label">웹 페이지 URL</label>
-                    <input type="url" class="form-control" id="urlInputField" placeholder="https://example.com">
-                </div>
-            </div>
-
-            <div class="loading">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">처리 중...</p>
-            </div>
-
-            <div class="result-container">
-                <h4>추출된 장소 정보</h4>
-                <ul id="locationList" class="list-group">
-                </ul>
-                <button class="copy-btn" onclick="copyLocations()">복사하기</button>
-            </div>
-
-            <button id="processButton" class="btn btn-primary w-100 mt-3">처리하기</button>
-        </div>
-
-        <!-- 네이버 지도 컨테이너 추가 -->
-        <div id="map" style="width: 100%; height: 400px; margin-top: 20px; border-radius: 16px; box-shadow: 0 4px 24px rgba(149,117,205,0.10);"></div>
+    <!-- 모드 전환 버튼 -->
+    <div class="mode-toggle">
+      <button id="imageMode" type="button" class="toggle-button active">이미지 업로드</button>
+      <button id="urlMode" type="button" class="toggle-button">URL 입력</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/api.js"></script>
-    <script src="/app.js"></script>
-    <script>
-    // 지도 초기화 확인
-    window.addEventListener('load', function() {
-        if (typeof naver !== 'undefined' && naver.maps) {
-            initMap();
-        } else {
-            console.error('네이버 지도 API가 로드되지 않았습니다.');
-        }
+    <!-- 이미지 입력 -->
+    <div id="imageInputSection" class="input-section">
+        <label for="imageFile">이미지 파일 선택</label>
+        <input type="file" id="imageFile" accept="image/*" onchange="handleImageUpload(event)"/>
+    </div>
+
+    <!-- 📷 이미지 미리보기 (초기엔 숨김) -->
+  <div id="previewSection" style="display: none;">
+    <p>선택된 이미지 미리보기:</p>
+    <img id="previewImage" alt="미리보기" width="300">
+  </div>
+    
+    <!-- URL 입력 -->
+    <div id="urlInputSection" class="input-section" style="display: none;">
+      <label for="urlField">URL 입력</label>
+      <input type="text" id="urlField" placeholder="인스타그램 포스트 링크를 붙여주세요..." />
+    </div>
+
+    <!-- 처리하기 버튼 -->
+    <button id="processButton" class="action-button">처리하기</button>
+
+    <!-- ⏳ 로딩 표시 영역 (처음엔 숨김) -->
+  <div id="loading" style="display: none;">
+    <div class="loading-spinner"></div>
+    <p>텍스트를 추출하는 중...</p>
+  </div>
+
+    <!-- 오류 메시지 출력 -->
+    <div class="error-message" id="errorMessage"></div>
+
+    <!-- 📦 결과 박스 (처음엔 숨김) -->
+  <div id="resultContainer" style="display: none;">
+    <h3>추출된 내용</h3>
+    <div class="post-content">
+      <div class="post-text" id="postText">-</div>
+      <div class="hashtags" id="hashtags">-</div>
+    </div>
+  </div
+
+ 
+  <script
+    const imageModeBtn = document.getElementById('imageMode');
+    const urlModeBtn = document.getElementById('urlMode');
+    const imageSection = document.getElementById('imageInputSection');
+    const urlSection = document.getElementById('urlInputSection');
+    const processButton = document.getElementById('processButton');
+    const previewSection = document.getElementById('previewSection');
+    const previewImage = document.getElementById('previewImage');
+    const imageFileInput = document.getElementById('imageFile');
+    const loadingDiv = document.getElementById('loading');
+    const resultContainer = document.getElementById('resultContainer');
+    const postTextDiv = document.getElementById('postText');
+    const hashtagsDiv = document.getElementById('hashtags');
+
+
+    let uploadedImageURL = null;
+    let selectedImage = null;
+    uploadedImageURL = selectedImage
+    
+    // 🔁 모드: 이미지 업로드
+    imageModeBtn.addEventListener('click', () => {
+      imageSection.style.display = 'block';
+      urlSection.style.display = 'none';
+      previewSection.style.display = 'none';
+      resultContainer.style.display = 'none';
+      loadingDiv.style.display = 'none';
+      processButton.onclick = extractText;
     });
 
-    function copyLocations() {
-        const items = Array.from(document.querySelectorAll('#locationList li'));
-        const text = items.map(li => li.textContent.trim()).join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            alert('장소 정보가 복사되었습니다!');
-        });
+    // 🔁 모드: URL 입력
+    urlModeBtn.addEventListener('click', () => {
+      imageSection.style.display = 'none';
+      urlSection.style.display = 'block';
+      previewSection.style.display = 'none';
+      resultContainer.style.display = 'none';
+      loadingDiv.style.display = 'none';
+      processButton.onclick = extractContent;
+    });
+
+    // 기본 모드 설정
+    processButton.onclick = extractText;
+
+    // 📂 이미지 업로드 핸들러
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        uploadedImageURL = URL.createObjectURL(file);
+        console.log("이미지 업로드됨:", file.name);
+      }
     }
-    </script>
+
+    // 🖼 이미지 처리 함수
+    function extractText() {
+      if (!uploadedImageURL) {
+        alert("이미지를 먼저 업로드해주세요.");
+        return;
+      }
+
+      loadingDiv.style.display = 'block'; // 로딩 시작
+      resultContainer.style.display = 'none';
+
+      // 예시 처리 시뮬레이션 (비동기처럼)
+      setTimeout(() => {
+        previewImage.src = uploadedImageURL;
+        previewSection.style.display = 'block';
+
+        // 결과 값 넣기 (여기서 서버 응답 대체)
+        const resultText = "이미지에서 추출한 텍스트입니다.";
+        const resultHashtags = "#샘플 #해시태그";
+
+        postTextDiv.textContent = resultText;
+        hashtagsDiv.textContent = resultHashtags;
+
+        resultContainer.style.display = 'block';
+        loadingDiv.style.display = 'none';
+      }, 1000);
+    }
+
+    // 🔗 URL 처리 함수
+    function extractContent() {
+      const url = document.getElementById('urlField').value.trim();
+
+      if (url === "") {
+        alert("URL을 입력해주세요.");
+        return;
+      }
+
+      loadingDiv.style.display = 'block'; // 로딩 시작
+      resultContainer.style.display = 'none';
+
+      // 예시 처리 시뮬레이션
+      setTimeout(() => {
+        // 결과 값 넣기
+        const resultText = "URL에서 추출한 게시글 내용입니다.";
+        const resultHashtags = "#인스타그램 #분석완료";
+
+        postTextDiv.textContent = resultText;
+        hashtagsDiv.textContent = resultHashtags;
+
+        resultContainer.style.display = 'block';
+        loadingDiv.style.display = 'none';
+      }, 1000);
+    }
+
+// [1] 인스타그램 링크에서 텍스트 추출
+async function extractContent() {
+            const link = document.getElementById("instaLink").value;
+            const loadingDiv = document.querySelector('.loading');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultDiv = document.getElementById("result");
+            
+            if (!link) {
+                showError('링크를 입력해주세요.');
+                return;
+            }
+
+            try {
+                loadingDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                errorMessage.style.display = 'none';
+
+                const normalizedUrl = normalizeInstagramUrl(link);
+                if (!normalizedUrl) {
+                    throw new Error('올바른 인스타그램 링크를 입력해주세요.');
+                }
+
+                // 백엔드로 POST 요청 (Instagram 링크 분석용)
+                const response = await fetch('http://localhost:3000/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: normalizedUrl })
+                });
+
+                if (!response.ok) {
+                    throw new Error('서버 연결에 실패했습니다. 서버가 실행 중인지 확인해주세요.');
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById("postText").innerText = data.data.text;
+                    document.getElementById("hashtags").innerText = data.data.hashtags;
+                    resultDiv.style.display = 'block';
+                } else {
+                    throw new Error(data.error || '포스트 내용을 가져오는데 실패했습니다.');
+                }
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // [2] 링크 정규화 (www 붙이기 등)
+        function normalizeInstagramUrl(url) {
+            url = url.trim();
+            
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            if (!url.includes('www.')) {
+                url = url.replace('instagram.com', 'www.instagram.com');
+            }
+
+            return url;
+        }
+
+        // [3] 에러 메시지 표시 함수
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.innerText = message;
+            errorMessage.style.display = 'block';
+            document.getElementById("result").style.display = 'none';
+        }
+
+        // [4] 결과 복사 기능
+        function copyToClipboard() {
+            const postText = document.getElementById("postText").innerText;
+            const hashtags = document.getElementById("hashtags").innerText;
+            const fullText = postText + '\n\n' + hashtags;
+            
+            navigator.clipboard.writeText(fullText).then(() => {
+                alert('포스트 내용이 클립보드에 복사되었습니다!');
+            });
+        }
+
+        // [5] 이미지 선택 핸들링 (미리보기 + 상태 저장)
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewImage = document.getElementById('previewImage');
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+                
+                document.getElementById('extractButton').style.display = 'inline-block';
+                selectedImage = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // [6] Tesseract OCR 이미지 텍스트 추출
+        async function extractText() {
+            if (!selectedImage) {
+                showError('이미지를 먼저 선택해주세요.');
+                return;
+            }
+
+            const loadingDiv = document.querySelector('.loading');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultDiv = document.getElementById("result");
+            
+            try {
+                loadingDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                errorMessage.style.display = 'none';
+
+                // Tesseract.js로 OCR 수행
+                const text = await ocrSpaceImage(selectedImage, 'kor');
+
+                // 해시태그 분리
+                const hashtags = text.match(/#[\w가-힣]+/g) || [];
+                const mainText = text.replace(/#[\w가-힣]+/g, '').trim();
+
+                document.getElementById("postText").innerText = mainText;
+                document.getElementById("hashtags").innerText = hashtags.join(' ');
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // [7] 엔터키로도 텍스트 추출 가능하도록 처리
+        document.getElementById('instaLink').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                extractContent();
+            }
+        });>
+
+</script>
+  </div>
 </body>
-</html> 
+</html>

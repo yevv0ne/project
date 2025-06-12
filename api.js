@@ -65,4 +65,31 @@ async function ocrSpaceImage(imageBase64, language = 'kor') {
         throw new Error(result.ErrorMessage || 'OCR 처리 중 오류 발생');
     }
     return result.ParsedResults && result.ParsedResults[0] ? result.ParsedResults[0].ParsedText : '';
-} 
+}
+
+const clientId = 'SBpwzWLY9JvM1QCPrKQ8';
+const clientSecret = 'cGY7SOW3ut';
+
+// 1. OCR/URL에서 추출된 장소명(예: "성신여대")
+const placeName = "성신여대";
+
+// 2. 네이버 지역 검색 API로 정확한 주소/좌표 획득
+fetch('/search-place?query=' + encodeURIComponent(placeName))
+  .then(res => res.json())
+  .then(data => {
+    if (!data.items || data.items.length === 0) {
+      alert('정확한 장소를 찾을 수 없습니다.');
+      return;
+    }
+    const item = data.items[0];
+    const lng = parseFloat(item.mapx) / 1e7;
+    const lat = parseFloat(item.mapy) / 1e7;
+    // 3. 지도에 마커 표시
+    const point = new naver.maps.LatLng(lat, lng);
+    if (window.marker) window.marker.setMap(null);
+    window.marker = new naver.maps.Marker({ position: point, map: window.map });
+    window.map.setCenter(point);
+    window.map.setZoom(15);
+  });
+
+markPlacesFromExtracted(["성신여대", "강남역", "서울특별시청"]); 

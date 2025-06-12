@@ -1,46 +1,60 @@
-// DOM 요소
-const imageInput = document.getElementById('imageInput');
-const urlInput = document.getElementById('urlInput');
-const imageUploadSection = document.getElementById('imageUploadSection');
-const urlInputSection = document.getElementById('urlInputSection');
-const imageFile = document.getElementById('imageFile');
-const urlInputField = document.getElementById('urlInputField');
-const processButton = document.getElementById('processButton');
-const imagePreview = document.getElementById('imagePreview');
-const loading = document.querySelector('.loading');
-const resultContainer = document.querySelector('.result-container');
-const locationList = document.getElementById('locationList');
+// DOM이 로드된 후 실행
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM 요소
+    const imageInput = document.getElementById('imageInput');
+    const urlInput = document.getElementById('urlInput');
+    const imageUploadSection = document.getElementById('imageUploadSection');
+    const urlInputSection = document.getElementById('urlInputSection');
+    const imageFile = document.getElementById('imageFile');
+    const urlInputField = document.getElementById('urlInputField');
+    const processButton = document.getElementById('processButton');
+    const imagePreview = document.getElementById('imagePreview');
+    const loading = document.querySelector('.loading');
+    const resultContainer = document.querySelector('.result-container');
+    const locationList = document.getElementById('locationList');
 
-// 입력 방식 전환
-imageInput.addEventListener('change', () => {
-    imageUploadSection.style.display = 'block';
-    urlInputSection.style.display = 'none';
-});
+    // 입력 방식 전환
+    if (imageInput && urlInput) {
+        imageInput.addEventListener('change', () => {
+            imageUploadSection.style.display = 'block';
+            urlInputSection.style.display = 'none';
+        });
 
-urlInput.addEventListener('change', () => {
-    imageUploadSection.style.display = 'none';
-    urlInputSection.style.display = 'block';
-});
-
-// 이미지 미리보기
-imageFile.addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.src = e.target.result;
-            imagePreview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
+        urlInput.addEventListener('change', () => {
+            imageUploadSection.style.display = 'none';
+            urlInputSection.style.display = 'block';
+        });
     }
-});
 
-// 처리 버튼 클릭 이벤트
-processButton.addEventListener('click', async () => {
-    if (imageInput.checked) {
-        await processImage();
-    } else {
-        await processUrl();
+    // 이미지 미리보기
+    if (imageFile) {
+        imageFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // 처리 버튼 클릭 이벤트
+    if (processButton) {
+        processButton.addEventListener('click', async () => {
+            if (imageInput.checked) {
+                await processImage();
+            } else {
+                await processUrl();
+            }
+        });
+    }
+
+    // 지도 초기화
+    if (typeof naver !== 'undefined' && naver.maps) {
+        initMap();
     }
 });
 
@@ -70,6 +84,13 @@ async function processImage() {
                 const locations = await extractLocations(extractedText);
                 console.log('추출된 장소:', locations);
                 showResults(locations);
+                // 장소명 배열 추출 및 지도에 마커 표시
+                if (locations && locations.length > 0) {
+                    const placeNames = locations.map(loc => loc.name).filter(Boolean);
+                    if (window.markPlacesFromExtracted) {
+                        window.markPlacesFromExtracted(placeNames);
+                    }
+                }
             } catch (error) {
                 console.error('처리 중 오류:', error);
                 showError(error.message);
@@ -108,6 +129,13 @@ async function processUrl() {
         const data = await response.json();
         const locations = await extractLocations(data.text);
         showResults(locations);
+        // 장소명 배열 추출 및 지도에 마커 표시
+        if (locations && locations.length > 0) {
+            const placeNames = locations.map(loc => loc.name).filter(Boolean);
+            if (window.markPlacesFromExtracted) {
+                window.markPlacesFromExtracted(placeNames);
+            }
+        }
     } catch (error) {
         showError(error.message);
     }
@@ -201,6 +229,72 @@ function createMarker(location) {
 
     infoWindows.push(infoWindow);
     return marker;
+}
+
+// 주소 전처리 함수
+function preprocessText(text) {
+    return text
+        .replace(/\s+/g, ' ') // 여러 공백을 하나로
+        .replace(/[^\w\s가-힣\-]/g, ' ') // 특수문자 제거 (하이픈은 유지)
+        .trim();
+}
+
+// 주소 후처리 함수
+function postprocessAddress(address) {
+    return address
+        .replace(/\s+/g, ' ') // 여러 공백을 하나로
+        .replace(/(\d+)([가-힣])/g, '$1 $2') // 숫자와 한글 사이에 공백 추가
+        .replace(/([가-힣])(\d+)/g, '$1 $2') // 한글과 숫자 사이에 공백 추가
+        .trim();
+}
+
+// 주소 유효성 검사 함수
+function isValidAddress(address) {
+    // 최소 길이 체크
+    if (address.length < 5) return false;
+    
+    // 필수 요소 체크 (시/도, 구/군 중 하나는 있어야 함)
+    const hasCity = /(시|도)/.test(address);
+    const hasDistrict = /(구|군)/.test(address);
+    if (!hasCity && !hasDistrict) return false;
+    
+    // 숫자가 포함되어야 함
+    if (!/\d+/.test(address)) return false;
+    
+    return true;
+}
+
+// OCR로 추출한 텍스트에서 주소 후보 추출
+function extractAddressCandidates(text) {
+    // 텍스트 전처리
+    const preprocessedText = preprocessText(text);
+    
+    const patterns = [
+        // 도로명 주소 패턴
+        /([가-힣A-Za-z0-9]+(시|도|특별시|광역시)\s*)?[가-힣A-Za-z0-9]+(구|군|시)\s*[가-힣A-Za-z0-9\-]+(로|길|대로|거리)\s*\d+(?:[가-힣]|\s*\d*)?/g,
+        
+        // 지번 주소 패턴
+        /([가-힣A-Za-z0-9]+(시|도|특별시|광역시)\s*)?[가-힣A-Za-z0-9]+(구|군|시)\s*[가-힣A-Za-z0-9]+(동|읍|면|가)\s*\d+[\-\d]*(?:[가-힣]|\s*\d*)?/g,
+        
+        // 건물명이 포함된 주소 패턴
+        /([가-힣A-Za-z0-9]+(시|도|특별시|광역시)\s*)?[가-힣A-Za-z0-9]+(구|군|시)\s*[가-힣A-Za-z0-9\-]+(로|길|대로|거리)\s*\d+(?:[가-힣]|\s*\d*)?\s*[가-힣A-Za-z0-9]+(빌딩|아파트|타워|센터|몰|플라자|스퀘어|하우스|빌라|맨션)/g,
+        
+        // 간단한 주소 패턴 (시/구/동만 있는 경우)
+        /([가-힣A-Za-z0-9]+(시|도|특별시|광역시)\s*)?[가-힣A-Za-z0-9]+(구|군|시)\s*[가-힣A-Za-z0-9]+(동|읍|면|가)\s*\d+/g
+    ];
+    
+    // 모든 패턴에서 주소 추출
+    let candidates = patterns.flatMap(pattern => preprocessedText.match(pattern) || []);
+    
+    // 중복 제거 및 후처리
+    candidates = [...new Set(candidates)]
+        .map(postprocessAddress)
+        .filter(isValidAddress);
+    
+    // 주소 정렬 (길이가 긴 주소를 우선)
+    candidates.sort((a, b) => b.length - a.length);
+    
+    return candidates;
 }
 
 // 기존의 extractLocations 함수 수정
@@ -303,18 +397,18 @@ function showResults(locations) {
 
 // 로딩 표시
 function showLoading() {
-    loading.style.display = 'block';
-    resultContainer.style.display = 'none';
+    const loading = document.querySelector('.loading');
+    if (loading) loading.style.display = 'block';
 }
 
 // 로딩 숨기기
 function hideLoading() {
-    loading.style.display = 'none';
+    const loading = document.querySelector('.loading');
+    if (loading) loading.style.display = 'none';
 }
 
 // 에러 표시
 function showError(message) {
     hideLoading();
-    resultContainer.style.display = 'block';
-    locationList.innerHTML = `<li class="list-group-item text-danger">${message}</li>`;
+    alert(message);
 } 

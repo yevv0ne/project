@@ -1,262 +1,148 @@
+/* 전체 페이지 기본 배경과 정렬 설정 */
 body {
-    font-family: 'Outfit', sans-serif;
-    background-color: #f3f8fc;
-    color: #333;
+    font-family: 'Arial', sans-serif;
+    background-color: #f2f3fb; /* 연보라 배경 */
+    margin: 0;
     padding: 40px;
+    display: flex;
+    justify-content: center; /* 가운데 정렬 */
+}
+
+/* 중앙에 위치한 전체 박스 컨테이너 */
+.container {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 8px 30px rgba(149, 117, 205, 0.15); /* 보라 그림자 */
     text-align: center;
 }
-h1 {
-    font-size: 3em;
-    color: #5b5bff;
-    font-weight: 700;
+
+/* 이미지/URL 모드 전환 버튼을 감싸는 영역 */
+.mode-toggle {
+    display: flex;
+    justify-content: center;
     margin-bottom: 20px;
-    letter-spacing: 1px;
 }
-input[type="file"] {
-    margin: 20px 0;
-    font-family: 'Outfit', sans-serif;
-}
-button {
-    padding: 12px 30px;
-    background-color: #d0bcff;
-    color: white;
+
+/* 모드 전환 버튼 기본 스타일 */
+.toggle-button {
+    flex: 1;
+    padding: 12px 0;
     border: none;
-    border-radius: 20px;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-button:hover {
-    background-color: #a18cff;
-    transform: scale(1.05);
-    box-shadow: 0 0 8px rgba(0,0,0,0.1);
-}
-.result {
-    margin-top: 30px;
-    padding: 25px;
-    background-color: #fffdfa;
-    border-radius: 18px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    text-align: left;
-    font-size: 1em;
-    white-space: pre-wrap;
-}
-img {
-    max-width: 300px;
-    margin: 20px auto;
-    border-radius: 15px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-.upload-container {
-    text-align: center;
-    margin: 20px 0;
-    padding: 30px;
-    background-color: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-.file-input-wrapper {
-    position: relative;
-    display: inline-block;
-    margin: 20px 0;
-}
-.file-input-wrapper input[type="file"] {
-    display: none;
-}
-.file-input-label {
-    display: inline-block;
-    padding: 15px 30px;
-    background-color: #d0bcff;
+    background-color: #d1c4e9; /* 연보라 */
     color: white;
-    border-radius: 20px;
+    font-weight: bold;
+    border-radius: 12px 12px 0 0; /* 위만 둥글게 */
     cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    transition: all 0.3s ease;
+    transition: background 0.3s, transform 0.2s;
 }
-.file-input-label:hover {
-    background-color: #a18cff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+
+/* 선택된 모드 전환 버튼에 적용되는 강조 스타일 */
+.toggle-button.active {
+    background-color: #7165bc; /* 진보라 */
+    color: white;
+    transform: scale(1.03); /* 살짝 확대 */
 }
-.preview-image {
-    max-width: 300px;
-    max-height: 300px;
-    margin: 20px auto;
-    display: none;
-    border-radius: 15px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+
+/* 입력 폼들을 감싸는 섹션 */
+.input-section {
+    margin-bottom: 20px;
 }
-.or-divider {
-    text-align: center;
-    margin: 20px 0;
-    position: relative;
+
+/* 파일/텍스트 입력 상자 라벨 스타일 */
+label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #444;
 }
-.or-divider:before,
-.or-divider:after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    width: 45%;
-    height: 1px;
-    background-color: #e0e0e0;
-}
-.or-divider:before {
-    left: 0;
-}
-.or-divider:after {
-    right: 0;
-}
-.or-text {
-    background-color: #f3f8fc;
-    padding: 0 15px;
-    color: #666;
-    font-size: 14px;
-}
-.input-container {
-    text-align: center;
-    margin: 20px 0;
-    padding: 30px;
-    background-color: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
+
+/* 파일 업로드나 텍스트 입력창의 기본 스타일 */
+input[type="file"],
 input[type="text"] {
-    padding: 15px 20px;
-    width: 70%;
-    border: 2px solid #e0e0e0;
-    border-radius: 20px;
-    margin-right: 10px;
+    padding: 12px;
+    width: 100%;
+    border: 2px solid #ddd;
+    border-radius: 12px;
     font-size: 16px;
-    font-family: 'Outfit', sans-serif;
-    transition: all 0.3s ease;
 }
-input[type="text"]:focus {
-    outline: none;
-    border-color: #d0bcff;
-    box-shadow: 0 0 8px rgba(208,188,255,0.2);
+
+/* "처리하기" 버튼 기본 스타일 */
+.action-button {
+    width: 100%;
+    padding: 14px;
+    background-color: #b39ddb; /* 보라 계열 */
+    color: white;
+    font-size: 16px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
 }
+
+/* "처리하기" 버튼에 마우스를 올렸을 때 */
+.action-button:hover {
+    background-color: #9575cd;
+}
+
+/* 로딩 메시지를 감싸는 전체 영역 */
 .loading {
-    display: none;
-    text-align: center;
-    margin: 20px 0;
-    color: #666;
+    display: none;            /* 처음엔 숨김 상태 (필요할 때만 표시) */
+    text-align: center;       /* 가운데 정렬 */
+    margin: 20px 0;           /* 위아래 여백 */
+    color: #666;              /* 회색 텍스트 색상 */
 }
+
+/* 로딩 스피너(회전하는 원) 스타일 */
 .loading-spinner {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #d0bcff;
-    border-radius: 50%;
+    border: 4px solid #f3f3f3;       /* 회색 테두리 */
+    border-top: 4px solid #d0bcff;   /* 위쪽만 보라색으로 강조 */
+    border-radius: 50%;             /* 완전한 원 형태 */
     width: 30px;
     height: 30px;
-    animation: spin 1s linear infinite;
-    margin: 0 auto;
+    animation: spin 1s linear infinite; /* 1초마다 계속 회전 */
+    margin: 0 auto;                  /* 가운데 정렬 */
 }
+
+/* 회전 애니메이션 정의 */
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% { transform: rotate(0deg); }       /* 시작 각도 */
+    100% { transform: rotate(360deg); }   /* 끝 각도 (한 바퀴) */
 }
-.error-message {
-    color: #dc3545;
-    margin-top: 10px;
-    display: none;
-    padding: 10px;
-    background-color: #fff;
-    border-radius: 15px;
-    border: 1px solid #dc3545;
-}
+
+
+/* 텍스트 추출 결과 전체 박스 스타일 */
 #result {
-    margin-top: 30px;
-    padding: 25px;
-    border: 1px solid #e0e0e0;
-    border-radius: 18px;
-    background-color: #fffdfa;
-    display: none;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    margin-top: 30px; /* 위쪽 여백 */
+    padding: 25px; /* 안쪽 여백 */
+    border: 1px solid #e0e0e0; /* 연한 회색 테두리 */
+    border-radius: 18px; /* 모서리 둥글게 */
+    background-color: #fffdfa; /* 따뜻한 흰색 배경 */
+    display: none; /* 기본은 숨김 (결과가 나올 때만 보이게) */
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); /* 그림자 효과 */
 }
+
+/* 결과 내용 전체 감싸는 영역 */
 .post-content {
-    background-color: #f8f9fa;
-    padding: 20px;
-    border-radius: 15px;
-    margin-top: 20px;
+    background-color: #f8f9fa; /* 연한 회색 배경 */
+    padding: 20px; /* 안쪽 여백 */
+    border-radius: 15px; /* 모서리 둥글게 */
+    margin-top: 20px; /* 위쪽 간격 */
 }
+
+/* 본문 텍스트 스타일 */
 .post-text {
-    white-space: pre-wrap;
-    line-height: 1.6;
-    font-size: 16px;
-    color: #262626;
+    white-space: pre-wrap; /* 줄바꿈, 공백 유지 */
+    line-height: 1.6; /* 줄 간격 */
+    font-size: 16px; /* 글자 크기 */
+    color: #262626; /* 거의 검은색에 가까운 글씨색 */
 }
+
+/* 해시태그 부분 스타일 */
 .hashtags {
-    color: #5b5bff;
-    margin-top: 10px;
+    color: #5b5bff; /* 선명한 파란색 계열 */
+    margin-top: 10px; /* 위 여백 */
 }
-.locations {
-    color: #ff6b6b;
-    margin-top: 10px;
-    font-weight: 500;
-}
-.copy-button {
-    background-color: #d0bcff;
-    margin-top: 15px;
-}
-.copy-button:hover {
-    background-color: #a18cff;
-}
-.help-text {
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 10px;
-    text-align: center;
-}
-.extract-button {
-    display: none;
-    margin-top: 15px;
-    padding: 12px 25px;
-    background-color: #d0bcff;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-.extract-button:hover {
-    background-color: #a18cff;
-    transform: scale(1.05);
-    box-shadow: 0 0 8px rgba(0,0,0,0.1);
-}
-.locations-container {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-}
-.locations-container h4 {
-    margin: 0 0 10px 0;
-    color: #333;
-    font-size: 1.1em;
-}
-.location-item {
-    margin: 8px 0;
-    padding: 8px;
-    background-color: white;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.location-name {
-    font-weight: 500;
-    color: #2c3e50;
-}
-.location-type {
-    margin-left: 8px;
-    color: #666;
-    font-size: 0.9em;
-}
-.location-coordinates {
-    display: block;
-    margin-top: 4px;
-    color: #888;
-    font-size: 0.8em;
-    font-family: monospace;
-} 

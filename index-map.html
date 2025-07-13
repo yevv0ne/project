@@ -1,301 +1,80 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-    <title>PlacePick</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-     
-    <style>
-        body {
-            background: #f4f6fb;
-        }
-        .upload-container {
-            max-width: 600px;
-            margin: 2rem auto;
-            padding: 2rem;
-            border-radius: 24px;
-            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
-            background: #fff;
-        }
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            margin-top: 1rem;
-            display: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(149,117,205,0.10);
-        }
-        .result-container {
-            margin-top: 2rem;
-            display: none;
-            background: #fcf8ff;
-            border-radius: 20px;
-            box-shadow: 0 2px 12px rgba(149,117,205,0.08);
-            padding: 2rem 1rem;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 1rem 0;
-        }
-        .btn-outline-primary, .btn-primary {
-            background: #b39ddb;
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            border-radius: 18px;
-            font-size: 1.1em;
-            padding: 0.8em 0;
-            transition: background 0.2s;
-        }
-        .btn-outline-primary:hover, .btn-primary:hover {
-            background: #9575cd;
-            color: #fff;
-        }
-        .btn-check:checked + .btn-outline-primary {
-            background: #9575cd;
-            color: #fff;
-        }
-        .form-control {
-            border-radius: 16px;
-            border: 2px solid #ede7f6;
-            background: #f8f5ff;
-        }
-        .form-control:focus {
-            border-color: #b39ddb;
-            box-shadow: 0 0 0 0.15rem rgba(149,117,205,0.15);
-        }
-        .list-group-item {
-            border: none;
-            background: #fff;
-            border-radius: 12px !important;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-            font-weight: 500;
-            color: #333;
-            box-shadow: 0 1px 4px rgba(149,117,205,0.04);
-        }
-        .badge {
-            background-color: #b39ddb;
-        }
-        .spinner-border.text-primary {
-            color: #b39ddb !important;
-        }
-        h2, h4 {
-            color: #6f42c1;
-            font-weight: 700;
-        }
-        .copy-btn, #processButton {
-            background: #b39ddb;
-            border: none;
-            color: #fff;
-            border-radius: 18px;
-            font-size: 1.1em;
-            font-weight: 600;
-            padding: 0.8em 0;
-            width: 100%;
-            margin-top: 1.5rem;
-            transition: background 0.2s;
-        }
-        .copy-btn:hover, #processButton:hover {
-            background: #9575cd;
-        }
-        /* 지도 스타일 */
-        #map {
-            width: 100%;
-            height: 400px;
-            margin-top: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(149,117,205,0.10);
-            position: relative;
-            overflow: hidden;
-        }
-        .map-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-        /* 마커 스타일 */
-        .custom-marker {
-            background-color: #b39ddb;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        /* 정보창 스타일 */
-        .info-window {
-            padding: 10px;
-            min-width: 200px;
-            text-align: center;
-        }
-        .info-window h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-            color: #6f42c1;
-        }
-        .info-window p {
-            margin: 0;
-            font-size: 14px;
-            color: #666;
-        }
-        .info-window .address {
-            margin-top: 5px;
-            font-size: 12px;
-            color: #999;
+    <head>
+        <!-- 문서의 문자 인코딩을 UTF-8로 설정 (한글 포함한 다국어 지원) -->
+        <meta charset="UTF-8">
 
-         /* 입력창과 버튼을 감싸는 컨테이너 여백 */
-         #controls {
-            margin-bottom: 15px; /* 아래에 간격을 줘서 지도와 떨어지게 */
-        }
+        <!-- 모바일/반응형 웹을 위한 뷰포트 설정 -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-        /* 텍스트 입력창 스타일 */
-        input[type="text"] {
-            padding: 8px; /* 안쪽 여백 */
-            width: 300px; /* 고정 너비 */
-        }
+        <!-- 브라우저 탭에 표시될 제목 설정 -->
+        <title>PlacePick</title>
 
-        /* 버튼 스타일 */
-        button {
-            padding: 8px 12px; /* 안쪽 여백: 상하 8px, 좌우 12px */
-            font-weight: bold; /* 글씨를 굵게 */
+        <!-- Bootstrap CSS 프레임워크 불러오기 (버전 5.3.0) -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-        }
-    </style>
-    <!-- 네이버 지도 API 불러오기 (Geocoder 포함) -->
-    <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=y9u3pd63ei&submodules=geocoder"></script>
-</head>
-<body>
-    <div class="container">
-        <div class="upload-container">
-            <h2 class="text-center mb-4">PlacePick</h2>
+        <!-- 사용자 정의 CSS 파일 연결 (디자인 커스터마이징용) -->
+        <link rel="stylesheet" href="design.css">
+
+        <!-- Bootstrap JS + Popper 번들 불러오기 (동작하는 모달, 드롭다운 등 포함) -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+        <!-- 네이버 지도 API 불러오기 (지도 렌더링 + 주소 → 좌표 변환용 Geocoder 포함) -->
+        <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=hk7y7c86pt&submodules=geocoder"></script>
+
+        <script src="api.js"></script>
+    </head>
+
+    <body>
+        <div class="container">
+
+            <!--여기가 박스 안에 작은 박스를 만들어서, 글씨가 꽉 차는게 아니라 어느정도 여백이 존재하도록 만들어주는 것 같음!!-->
+            <div class="upload-container">
+
+                <!--이부분이 아마 제목 부분인것 같음!!-->
+                <div class="text-center mb-4">
+                    <img src="PlacePick-Logo.png" alt="PlacePick Logo" style="height: 60px;">
+                </div>
+        
+                <!-- 모드 전환 버튼 -->
+                <div class="mode-toggle">
+                    <button id="imageMode" type="button" class="toggle-button active">이미지 업로드</button>
+                    <button id="urlMode" type="button" class="toggle-button">URL 입력</button>
+                </div>
+        
+                <!-- 이미지 입력 -->
+                <div id="imageInputSection" class="input-section">
+                    <label for="imageFile">이미지 파일 선택</label>
+                    <input type="file" id="imageFile" accept="image/*" />
+                </div>
+        
+                <!-- URL 입력 -->
+                <div id="urlInputSection" class="input-section" style="display: none;">
+                    <label for="urlField">URL 입력</label>
+                    <input type="text" id="urlField" placeholder="http://..." />
+                </div>
+        
+                    <button id="processButton" class="action-button"  onclick="getElementById()" >처리하기</button>
+
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>텍스트를 추출하는 중...</p>
+                    </div>
             
-            <!-- 입력 방식 선택 -->
-            <div class="mb-4">
-                <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="inputType" id="imageInput" checked>
-                    <label class="btn btn-outline-primary" for="imageInput">이미지 업로드</label>
-                    
-                    <input type="radio" class="btn-check" name="inputType" id="urlInput">
-                    <label class="btn btn-outline-primary" for="urlInput">URL 입력</label>
+                    <div class="error-message" id="errorMessage"></div>
+
+            <div id="result">
+                <h3>추출된 내용</h3>
+                <div class="post-content">
+                    <div class="post-text" id="postText">-</div>
+                    <div class="hashtags" id="hashtags">-</div>
                 </div>
             </div>
+        
+        <!-- frontend에서 쓸 함수들 불러오는 거!! -->
+        <script src="extractText_Content.js"></script>
+        <!-- 버튼 전환 기능 관련된 자바스크립트!! -->    
+        <script src="frontend.js"></script>
 
-            <!-- 이미지 업로드 섹션 -->
-            <div id="imageUploadSection">
-                <div class="mb-3">
-                    <label for="imageFile" class="form-label">이미지 파일 선택</label>
-                    <input type="file" class="form-control" id="imageFile" accept="image/*">
-                </div>
-                <img id="imagePreview" class="preview-image">
-            </div>
-
-            <!-- URL 입력 섹션 -->
-            <div id="urlInputSection" style="display: none;">
-                <div class="mb-3">
-                    <label for="urlInputField" class="form-label">웹 페이지 URL</label>
-                    <input type="url" class="form-control" id="urlInputField" placeholder="https://example.com">
-                </div>
-            </div>
-
-            <div class="loading">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">처리 중...</p>
-            </div>
-
-            <div class="result-container">
-                <h4>추출된 장소 정보</h4>
-                <ul id="locationList" class="list-group">
-                </ul>
-                <button class="copy-btn" onclick="copyLocations()">복사하기</button>
-            </div>
-
-            <button id="processButton" class="btn btn-primary w-100 mt-3">처리하기</button>
-        </div>
-    
-    <!-- 입력창과 버튼이 들어갈 컨트롤 영역 -->
-<div id="controls">
-    <input type="text" id="placeInput" placeholder="장소 이름을 입력하세요" />
-    <button onclick="geocodeAndMark()">지도에 표시</button>
-</div>
-
-        <!-- 네이버 지도 컨테이너 추가 -->
-        <div id="map" style="width: 100%; height: 400px; margin-top: 20px; border-radius: 16px; box-shadow: 0 4px 24px rgba(149,117,205,0.10);"></div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/api.js"></script>
-    <script src="/app.js"></script>
-    <script>
-    // 지도 초기화 확인
-    window.addEventListener('load', function() {
-        if (typeof naver !== 'undefined' && naver.maps) {
-            initMap();
-        } else {
-            console.error('네이버 지도 API가 로드되지 않았습니다.');
-        }
-    });
-
-    function copyLocations() {
-        const items = Array.from(document.querySelectorAll('#locationList li'));
-        const text = items.map(li => li.textContent.trim()).join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            alert('장소 정보가 복사되었습니다!');
-        });
-    }
-     // 지도 초기 옵션 설정
-     var mapOptions = {
-        center: new naver.maps.LatLng(37.552987017, 126.972591728), // 처음에 지도 중심 위치 (서울 시청 근처)
-        zoom: 10, // 줌 레벨
-        zoomControl: true, // 줌 컨트롤 사용 여부
-        zoomControlOptions: {
-            style: naver.maps.ZoomControlStyle.SMALL, // 줌 버튼 스타일
-            position: naver.maps.Position.TOP_RIGHT // 줌 버튼 위치
-        }
-    };
-
-    // 지도 생성
-    var map = new naver.maps.Map(document.getElementById('map'), mapOptions);
-
-    // 마커 생성 함수
-    function addMarker(latitude, longitude, map) {
-        new naver.maps.Marker({
-            position: new naver.maps.LatLng(latitude, longitude), // 위도/경도로 위치 지정
-            map: map // 마커를 표시할 지도 객체
-        });
-
-        // 마커 추가 후 지도 중심을 해당 위치로 이동
-        map.setCenter(new naver.maps.LatLng(latitude, longitude));
-    }
-
-    // 장소 이름을 주소로 검색하고 지도에 마커 추가하는 함수
-    function geocodeAndMark() {
-        var placeName = document.getElementById('placeInput').value; // 입력창에서 값 가져오기
-
-        if (!placeName) {
-            alert('장소 이름을 입력하세요!');
-            return;
-        }
-
-        // 주소 → 좌표 변환 API 호출
-        naver.maps.Service.geocode({
-            query: placeName
-        }, function(status, response) {
-            if (status !== naver.maps.Service.Status.OK) {
-                return alert('주소 변환 실패!');
-            }
-
-            // 변환 결과에서 첫 번째 결과의 좌표를 가져옴
-            var result = response.v2.addresses[0];
-            var latitude = parseFloat(result.y); // y는 위도
-            var longitude = parseFloat(result.x); // x는 경도
-
-            // 지도에 마커 추가
-            addMarker(latitude, longitude, map);
-        });
-    }
-    </script>
-</body>
-</html> 
+    </body>
+</html>

@@ -170,15 +170,109 @@
             font-weight: bold; /* 글씨를 굵게 */
 
         }
+
+        /* 날씨 섹션 스타일 */
+        .weather-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.15);
+        }
+
+        .weather-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .weather-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .weather-location {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .weather-temp {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .weather-desc {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .weather-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .humidity, .wind {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="upload-container">
-            <div class="text-center" style="margin-bottom: 0.2rem;">
-                <img src="@PlacePickLogo.png" alt="PlacePick Logo" style="width: 400px; height: 400px;">
+            <div class="text-center" style="margin-bottom: 0.1rem; margin-top: 0.1rem;">
+                <svg width="570" height="170" viewBox="0 0 570 170" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="pinGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#d0bcff;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#a18cff;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- 맵핀 아이콘 (왼쪽) -->
+                    <g transform="translate(0,0)">
+                        <!-- 맵핀 상단 원형 부분 -->
+                        <circle cx="60" cy="65" r="40" fill="url(#pinGradient)" />
+                        <!-- 맵핀 하단 뾰족 부분 -->
+                        <polygon points="60,145 80,105 40,105" fill="url(#pinGradient)" />
+                        <!-- 별 -->
+                        <path d="M60,65 L65,80 L80,80 L68,90 L72,105 L60,97 L48,105 L52,90 L40,80 L55,80 Z" fill="#f3f8fc"/>
+                    </g>
+
+                    <!-- 텍스트 및 밑줄 -->
+                    <g>
+                        <text x="145" y="115"
+                              font-family="Arial, sans-serif"
+                              font-size="65"
+                              font-weight="bold"
+                              fill="#d0bcff"
+                              letter-spacing="2">
+                            PlacePick
+                        </text>
+                        <!-- 텍스트 밑줄 -->
+                        <rect x="60" y="128" width="440" height="15" fill="#d0bcff" rx="7"/>
+                    </g>
+                </svg>
             </div>
   
+            <!-- 날씨 정보 섹션 -->
+            <div class="weather-section mb-4">
+                <div class="weather-container">
+                    <div class="weather-info">
+                        <span class="weather-location">서울</span>
+                        <span class="weather-temp">23°C</span>
+                        <span class="weather-desc">맑음</span>
+                    </div>
+                    <div class="weather-details">
+                        <span class="humidity">습도: 45%</span>
+                        <span class="wind">풍속: 2m/s</span>
+                    </div>
+                </div>
+            </div>
             
             <!-- 입력 방식 선택 -->
             <div class="mb-4">
@@ -236,36 +330,84 @@
 </div>
 
 <script>
-// 지도 초기화 확인
-window.addEventListener('load', function() {
-    if (typeof naver !== 'undefined' && naver.maps) {
-        initMap();
-    } else {
-        console.error('네이버 지도 API가 로드되지 않았습니다.');
-    }
-});
-
-// 지도 초기화 함수
-function initMap() {
-    console.log('=== 지도 초기화 시작 ===');
-    
-    var mapOptions = {
-        center: new naver.maps.LatLng(37.5665, 126.9780), // 서울시청 좌표 (기본값)
-        zoom: 13,
-        zoomControl: true,
-        zoomControlOptions: {
-            position: naver.maps.Position.TOP_RIGHT
+    // 지도 초기화 확인
+    window.addEventListener('load', function() {
+        if (typeof naver !== 'undefined' && naver.maps) {
+            initMap();
+        } else {
+            console.error('네이버 지도 API가 로드되지 않았습니다.');
         }
-    };
-    
-    console.log('지도 옵션:', mapOptions);
-    
-    var map = new naver.maps.Map('map', mapOptions);
-    window.map = map; // 전역 변수로 저장
-    
-    console.log('지도 객체 생성 완료:', window.map);
-    console.log('=== 지도 초기화 완료 ===');
-}
+        
+        // 페이지 로드 시 날씨 정보 가져오기
+        getWeatherData();
+    });
+
+    // 날씨 정보 가져오기 함수
+    async function getWeatherData() {
+        const API_KEY = 'e2121f6f8e954ebfb1b115328250808'; // OpenWeatherMap API 키
+        const city = 'Seoul'; // 기본값: 서울
+        
+        try {
+            const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric&lang=kr`);
+            const data = await response.json();
+            
+            if (data.cod === 200) {
+                updateWeatherDisplay(data);
+            } else {
+                console.error('날씨 정보 가져오기 실패:', data.message);
+            }
+        } catch (error) {
+            console.error('날씨 API 호출 실패:', error);
+            // 에러 시 기본값 표시
+            showDefaultWeather();
+        }
+    }
+
+    // 날씨 표시 업데이트
+    function updateWeatherDisplay(weatherData) {
+        const location = weatherData.name;
+        const temp = Math.round(weatherData.main.temp);
+        const description = weatherData.weather[0].description;
+        const humidity = weatherData.main.humidity;
+        const windSpeed = weatherData.wind.speed;
+        
+        document.querySelector('.weather-location').textContent = location;
+        document.querySelector('.weather-temp').textContent = `${temp}°C`;
+        document.querySelector('.weather-desc').textContent = description;
+        document.querySelector('.humidity').textContent = `습도: ${humidity}%`;
+        document.querySelector('.wind').textContent = `풍속: ${windSpeed}m/s`;
+    }
+
+    // 기본 날씨 정보 표시 (API 키가 없을 때)
+    function showDefaultWeather() {
+        document.querySelector('.weather-location').textContent = '서울';
+        document.querySelector('.weather-temp').textContent = '23°C';
+        document.querySelector('.weather-desc').textContent = '맑음';
+        document.querySelector('.humidity').textContent = '습도: 45%';
+        document.querySelector('.wind').textContent = '풍속: 2m/s';
+    }
+
+    // 지도 초기화 함수
+    function initMap() {
+        console.log('=== 지도 초기화 시작 ===');
+        
+        var mapOptions = {
+            center: new naver.maps.LatLng(37.5665, 126.9780), // 서울시청 좌표 (기본값)
+            zoom: 13,
+            zoomControl: true,
+            zoomControlOptions: {
+                position: naver.maps.Position.TOP_RIGHT
+            }
+        };
+        
+        console.log('지도 옵션:', mapOptions);
+        
+        var map = new naver.maps.Map('map', mapOptions);
+        window.map = map; // 전역 변수로 저장
+        
+        console.log('지도 객체 생성 완료:', window.map);
+        console.log('=== 지도 초기화 완료 ===');
+    }
 
 function copyLocations() {
     const items = Array.from(document.querySelectorAll('#locationList li'));

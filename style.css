@@ -27,8 +27,19 @@ body {
 }
 
 h1 {
-  color: #6a5acd;
-  margin-bottom: 30px;
+  font-size: 3em;
+  color: #5b5bff;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 0;
+  letter-spacing: 1px;
+}
+
+.logo-container {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* 모드 전환 버튼 영역 */

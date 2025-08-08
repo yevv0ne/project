@@ -65,4 +65,131 @@ async function ocrSpaceImage(imageBase64, language = 'kor') {
         throw new Error(result.ErrorMessage || 'OCR 처리 중 오류 발생');
     }
     return result.ParsedResults && result.ParsedResults[0] ? result.ParsedResults[0].ParsedText : '';
+}
+
+const clientId = 'SBpwzWLY9JvM1QCPrKQ8';
+const clientSecret = 'cGY7SOW3ut';
+
+// 1. OCR/URL에서 추출된 장소명(예: "성신여대")
+const placeName = "성신여대";
+
+// 2. 네이버 지역 검색 API로 정확한 주소/좌표 획득
+fetch('/search-place?query=' + encodeURIComponent(placeName))
+  .then(res => res.json())
+  .then(data => {
+    if (!data.items || data.items.length === 0) {
+      alert('정확한 장소를 찾을 수 없습니다.');
+      return;
+    }
+    const item = data.items[0];
+    const lng = parseFloat(item.mapx) / 1e7;
+    const lat = parseFloat(item.mapy) / 1e7;
+    // 3. 지도에 마커 표시
+    const point = new naver.maps.LatLng(lat, lng);
+    if (window.marker) window.marker.setMap(null);
+    window.marker = new naver.maps.Marker({ position: point, map: window.map });
+    window.map.setCenter(point);
+    window.map.setZoom(15);
+  });
+
+function markPlacesFromExtracted(placeNames) {
+  console.log('=== markPlacesFromExtracted 시작 ===');
+  console.log('입력받은 장소명들:', placeNames);
+  
+  placeNames.forEach((placeName, index) => {
+    console.log(`[${index + 1}] 장소명 "${placeName}" 처리 시작`);
+    
+    // 임시 해결책: API 키 문제가 있을 때 하드코딩된 좌표 사용
+    if (placeName.includes('용산구') || placeName.includes('한강대로')) {
+      console.log(`[${index + 1}] 하드코딩된 좌표 사용 (조건: ${placeName})`);
+      console.log('window.map 존재 여부:', !!window.map);
+      
+      if (!window.map) {
+        console.error('지도 객체가 없습니다!');
+        return;
+      }
+      
+      const lat = 37.5275;  // 용산구 한강대로39길 2-13 근처 좌표
+      const lng = 126.9654;
+      console.log(`[${index + 1}] 좌표:`, { lat, lng });
+      
+      const point = new naver.maps.LatLng(lat, lng);
+      console.log(`[${index + 1}] 포인트 객체 생성:`, point);
+      
+      if (window.marker) {
+        console.log(`[${index + 1}] 기존 마커 제거`);
+        window.marker.setMap(null);
+      }
+
+      console.log(`[${index + 1}] 새 마커 생성 시작`);
+      try {
+        window.marker = new naver.maps.Marker({
+          position: point,
+          map: window.map
+        });
+        console.log(`[${index + 1}] 마커 생성 성공:`, window.marker);
+      } catch (error) {
+        console.error(`[${index + 1}] 마커 생성 실패:`, error);
+        return;
+      }
+
+      console.log(`[${index + 1}] 지도 중심 이동 시작`);
+      try {
+        window.map.setCenter(point);
+        window.map.setZoom(15);
+        console.log(`[${index + 1}] 지도 중심 이동 완료`);
+      } catch (error) {
+        console.error(`[${index + 1}] 지도 중심 이동 실패:`, error);
+      }
+      
+      console.log(`[${index + 1}] 마커 생성 완료`);
+      return;
+    }
+    
+    fetch('/search-place?query=' + encodeURIComponent(placeName))
+      .then(res => {
+        console.log(`[${index + 1}] 네이버 API 응답 상태:`, res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log(`[${index + 1}] 네이버 API 응답 데이터:`, data);
+        
+        if (!data.items || data.items.length === 0) {
+          console.log(`[${index + 1}] 검색 결과 없음`);
+          return;
+        }
+
+        const item = data.items[0];
+        console.log(`[${index + 1}] 선택된 아이템:`, item);
+        
+        const lng = parseFloat(item.mapx) / 1e7;
+        const lat = parseFloat(item.mapy) / 1e7;
+        console.log(`[${index + 1}] 계산된 좌표:`, { lat, lng });
+        
+        const point = new naver.maps.LatLng(lat, lng);
+        
+        // 기존 마커 제거
+        if (window.marker) {
+          console.log(`[${index + 1}] 기존 마커 제거`);
+          window.marker.setMap(null);
+        }
+
+        // 새 마커 생성
+        console.log(`[${index + 1}] 새 마커 생성`);
+        window.marker = new naver.maps.Marker({
+          position: point,
+          map: window.map
+        });
+
+        // 지도 중심 이동
+        console.log(`[${index + 1}] 지도 중심 이동`);
+        window.map.setCenter(point);
+        window.map.setZoom(15);
+        
+        console.log(`[${index + 1}] 마커 생성 완료`);
+      })
+      .catch(error => {
+        console.error(`[${index + 1}] 에러 발생:`, error);
+      });
+  });
 } 

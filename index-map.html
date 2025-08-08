@@ -4,8 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
     <title>PlacePick</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-     
+    <link rel="stylesheet" href="style.css">
+
+    <!-- 네이버 지도 API 불러오기 (Geocoder 포함) -->
+    <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=hk7y7c86pt&submodules=geocoder"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+
     <style>
         body {
             background: #f4f6fb;
@@ -142,7 +151,7 @@
         .info-window .address {
             margin-top: 5px;
             font-size: 12px;
-            color: #999;
+            color: #999;}
 
          /* 입력창과 버튼을 감싸는 컨테이너 여백 */
          #controls {
@@ -162,13 +171,14 @@
 
         }
     </style>
-    <!-- 네이버 지도 API 불러오기 (Geocoder 포함) -->
-    <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=y9u3pd63ei&submodules=geocoder"></script>
 </head>
 <body>
     <div class="container">
         <div class="upload-container">
-            <h2 class="text-center mb-4">PlacePick</h2>
+            <div class="text-center" style="margin-bottom: 0.2rem;">
+                <img src="@PlacePickLogo.png" alt="PlacePick Logo" style="width: 400px; height: 400px;">
+            </div>
+  
             
             <!-- 입력 방식 선택 -->
             <div class="mb-4">
@@ -216,86 +226,174 @@
         </div>
     
     <!-- 입력창과 버튼이 들어갈 컨트롤 영역 -->
-<div id="controls">
-    <input type="text" id="placeInput" placeholder="장소 이름을 입력하세요" />
-    <button onclick="geocodeAndMark()">지도에 표시</button>
-</div>
-
-        <!-- 네이버 지도 컨테이너 추가 -->
-        <div id="map" style="width: 100%; height: 400px; margin-top: 20px; border-radius: 16px; box-shadow: 0 4px 24px rgba(149,117,205,0.10);"></div>
+    <div id="controls">
+        <input type="text" id="placeInput" placeholder="장소 이름을 입력하세요" />
+        <button onclick="geocodeAndMark()">지도에 표시</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/api.js"></script>
-    <script src="/app.js"></script>
-    <script>
-    // 지도 초기화 확인
-    window.addEventListener('load', function() {
-        if (typeof naver !== 'undefined' && naver.maps) {
-            initMap();
-        } else {
-            console.error('네이버 지도 API가 로드되지 않았습니다.');
-        }
-    });
+    <!-- 네이버 지도 컨테이너 추가 -->
+    <div id="map" style="width: 100%; height: 400px; margin-top: 20px; border-radius: 16px; box-shadow: 0 4px 24px rgba(149,117,205,0.10);"></div>
+</div>
 
-    function copyLocations() {
-        const items = Array.from(document.querySelectorAll('#locationList li'));
-        const text = items.map(li => li.textContent.trim()).join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            alert('장소 정보가 복사되었습니다!');
-        });
+<script>
+// 지도 초기화 확인
+window.addEventListener('load', function() {
+    if (typeof naver !== 'undefined' && naver.maps) {
+        initMap();
+    } else {
+        console.error('네이버 지도 API가 로드되지 않았습니다.');
     }
-     // 지도 초기 옵션 설정
-     var mapOptions = {
-        center: new naver.maps.LatLng(37.552987017, 126.972591728), // 처음에 지도 중심 위치 (서울 시청 근처)
-        zoom: 10, // 줌 레벨
-        zoomControl: true, // 줌 컨트롤 사용 여부
+});
+
+// 지도 초기화 함수
+function initMap() {
+    console.log('=== 지도 초기화 시작 ===');
+    
+    var mapOptions = {
+        center: new naver.maps.LatLng(37.5665, 126.9780), // 서울시청 좌표 (기본값)
+        zoom: 13,
+        zoomControl: true,
         zoomControlOptions: {
-            style: naver.maps.ZoomControlStyle.SMALL, // 줌 버튼 스타일
-            position: naver.maps.Position.TOP_RIGHT // 줌 버튼 위치
+            position: naver.maps.Position.TOP_RIGHT
         }
     };
+    
+    console.log('지도 옵션:', mapOptions);
+    
+    var map = new naver.maps.Map('map', mapOptions);
+    window.map = map; // 전역 변수로 저장
+    
+    console.log('지도 객체 생성 완료:', window.map);
+    console.log('=== 지도 초기화 완료 ===');
+}
 
-    // 지도 생성
-    var map = new naver.maps.Map(document.getElementById('map'), mapOptions);
+function copyLocations() {
+    const items = Array.from(document.querySelectorAll('#locationList li'));
+    const text = items.map(li => li.textContent.trim()).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        alert('장소 정보가 복사되었습니다!');
+    });
+}
 
-    // 마커 생성 함수
-    function addMarker(latitude, longitude, map) {
-        new naver.maps.Marker({
-            position: new naver.maps.LatLng(latitude, longitude), // 위도/경도로 위치 지정
-            map: map // 마커를 표시할 지도 객체
-        });
-
-        // 마커 추가 후 지도 중심을 해당 위치로 이동
-        map.setCenter(new naver.maps.LatLng(latitude, longitude));
+// 주소 검색 및 마커 표시 함수
+function geocodeAndMark() {
+    var address = document.getElementById('placeInput').value;
+    if (!address) {
+        alert('장소를 입력해주세요.');
+        return;
     }
 
-    // 장소 이름을 주소로 검색하고 지도에 마커 추가하는 함수
-    function geocodeAndMark() {
-        var placeName = document.getElementById('placeInput').value; // 입력창에서 값 가져오기
-
-        if (!placeName) {
-            alert('장소 이름을 입력하세요!');
-            return;
-        }
-
-        // 주소 → 좌표 변환 API 호출
-        naver.maps.Service.geocode({
-            query: placeName
-        }, function(status, response) {
-            if (status !== naver.maps.Service.Status.OK) {
-                return alert('주소 변환 실패!');
+    // 네이버 지역 검색 API로 정확한 좌표 획득
+    fetch('/search-place?query=' + encodeURIComponent(address))
+        .then(res => res.json())
+        .then(data => {
+            if (!data.items || data.items.length === 0) {
+                alert('주소/장소를 찾을 수 없습니다.');
+                return;
             }
-
-            // 변환 결과에서 첫 번째 결과의 좌표를 가져옴
-            var result = response.v2.addresses[0];
-            var latitude = parseFloat(result.y); // y는 위도
-            var longitude = parseFloat(result.x); // x는 경도
-
-            // 지도에 마커 추가
-            addMarker(latitude, longitude, map);
+            var item = data.items[0];
+            var lng = parseFloat(item.mapx) / 1e7;
+            var lat = parseFloat(item.mapy) / 1e7;
+            
+            // 정확한 좌표로 지도 중심 이동 및 마커 표시
+            var point = new naver.maps.LatLng(lat, lng);
+            if (window.marker) window.marker.setMap(null);
+            window.marker = new naver.maps.Marker({ 
+                position: point, 
+                map: window.map 
+            });
+            window.map.setCenter(point);
+            window.map.setZoom(15);
+        })
+        .catch(() => {
+            alert('주소/장소를 찾을 수 없습니다.');
         });
-    }
-    </script>
+}
+
+// 여러 주소/장소명을 지도에 마커로 표시
+function displayOnMap(addresses) {
+  if (!window.naver?.maps) throw new Error('네이버 지도 API 로드 실패');
+
+  const map = window.map || new naver.maps.Map('map', {
+    center: new naver.maps.LatLng(37.5665, 126.9780),
+    zoom: 10
+  });
+  window.map = map;
+
+  addresses.forEach(addr => {
+    // 1차: 주소로 검색
+    naver.maps.Service.geocode({ query: addr }, (status, response) => {
+      if (status === naver.maps.Service.Status.ERROR || response.v2.meta.totalCount === 0) {
+        // 2차: 장소명 검색 프록시
+        fetch('/search-place?query=' + encodeURIComponent(addr))
+          .then(res => res.json())
+          .then(data => {
+            if (!data.items || data.items.length === 0) return;
+            var item = data.items[0];
+            var lng = parseFloat(item.mapx) / 1e7;
+            var lat = parseFloat(item.mapy) / 1e7;
+            new naver.maps.Marker({
+              position: new naver.maps.LatLng(lat, lng),
+              map: map,
+              title: addr
+            });
+          });
+        return;
+      }
+      var item = response.v2.addresses[0];
+      var point = new naver.maps.Point(item.x, item.y);
+      new naver.maps.Marker({
+        position: point,
+        map: map,
+        title: addr
+      });
+    });
+  });
+}
+
+// OCR/URL에서 추출된 장소명(또는 주소) 배열을 받아 지도에 마커 표시
+function markPlacesFromExtracted(placeCandidates) {
+  if (!Array.isArray(placeCandidates) || placeCandidates.length === 0) {
+    alert('장소 후보가 없습니다.');
+    return;
+  }
+  if (!window.naver?.maps) throw new Error('네이버 지도 API 로드 실패');
+
+  const map = window.map || new naver.maps.Map('map', {
+    center: new naver.maps.LatLng(37.5665, 126.9780),
+    zoom: 10
+  });
+  window.map = map;
+
+  // 기존 마커 모두 제거
+  if (window.markers && Array.isArray(window.markers)) {
+    window.markers.forEach(m => m.setMap(null));
+  }
+  window.markers = [];
+
+  placeCandidates.forEach(placeName => {
+    fetch('/search-place?query=' + encodeURIComponent(placeName))
+      .then(res => res.json())
+      .then(data => {
+        if (!data.items || data.items.length === 0) return;
+        const item = data.items[0];
+        const lng = parseFloat(item.mapx) / 1e7;
+        const lat = parseFloat(item.mapy) / 1e7;
+        const marker = new naver.maps.Marker({
+          position: new naver.maps.LatLng(lat, lng),
+          map: map,
+          title: placeName
+        });
+        window.markers.push(marker);
+        // 첫 번째 마커는 지도 중심 이동
+        if (window.markers.length === 1) {
+          map.setCenter(new naver.maps.LatLng(lat, lng));
+          map.setZoom(15);
+        }
+      });
+  });
+}
+window.markPlacesFromExtracted = markPlacesFromExtracted;
+</script>
 </body>
 </html> 

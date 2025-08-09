@@ -344,17 +344,17 @@
 
     // 날씨 정보 가져오기 함수
     async function getWeatherData() {
-        const API_KEY = 'e2121f6f8e954ebfb1b115328250808'; // OpenWeatherMap API 키
         const city = 'Seoul'; // 기본값: 서울
         
         try {
-            const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric&lang=kr`);
+            const response = await fetch(`/weather?city=${city}`);
             const data = await response.json();
             
             if (data.cod === 200) {
                 updateWeatherDisplay(data);
             } else {
                 console.error('날씨 정보 가져오기 실패:', data.message);
+                showDefaultWeather();
             }
         } catch (error) {
             console.error('날씨 API 호출 실패:', error);
@@ -407,6 +407,33 @@
         
         console.log('지도 객체 생성 완료:', window.map);
         console.log('=== 지도 초기화 완료 ===');
+    }
+
+    // 지도에 마커 표시 함수
+    function markOnMap(lat, lng, placeName, address) {
+        const point = new naver.maps.LatLng(lat, lng);
+
+        // 기존 마커 제거(선택)
+        if (window.marker) window.marker.setMap(null);
+
+        // 새 마커 생성
+        window.marker = new naver.maps.Marker({
+            position: point,
+            map: window.map,
+            title: placeName
+        });
+
+        // 정보창(선택)
+        const infoWindow = new naver.maps.InfoWindow({
+            content: `<div style="padding:10px;"><b>${placeName}</b><br>${address ? address : ""}</div>`
+        });
+        naver.maps.Event.addListener(window.marker, "click", function() {
+            infoWindow.open(window.map, window.marker);
+        });
+
+        // 지도 중심 이동
+        window.map.setCenter(point);
+        window.map.setZoom(15);
     }
 
 function copyLocations() {

@@ -67,8 +67,8 @@ async function ocrSpaceImage(imageBase64, language = 'kor') {
     return result.ParsedResults && result.ParsedResults[0] ? result.ParsedResults[0].ParsedText : '';
 }
 
-const clientId = 'SBpwzWLY9JvM1QCPrKQ8';
-const clientSecret = 'cGY7SOW3ut';
+const clientId = 'dv09yJvf1T8W4_pyPYjs';
+const clientSecret = 'k4ncKS6rkV';
 
 // 1. OCR/URL에서 추출된 장소명(예: "성신여대")
 const placeName = "성신여대";
@@ -92,104 +92,123 @@ fetch('/search-place?query=' + encodeURIComponent(placeName))
     window.map.setZoom(15);
   });
 
-function markPlacesFromExtracted(placeNames) {
+async function markPlacesFromExtracted(placeNames) {
   console.log('=== markPlacesFromExtracted 시작 ===');
   console.log('입력받은 장소명들:', placeNames);
   
-  placeNames.forEach((placeName, index) => {
-    console.log(`[${index + 1}] 장소명 "${placeName}" 처리 시작`);
+  if (!placeNames || placeNames.length === 0) {
+    console.log('장소명이 없습니다.');
+    return;
+  }
+
+  // 여러 검색 방법 시도
+  for (let i = 0; i < placeNames.length; i++) {
+    const placeName = placeNames[i];
+    console.log(`\n=== 검색 시도 ${i + 1}: "${placeName}" ===`);
     
-    // 임시 해결책: API 키 문제가 있을 때 하드코딩된 좌표 사용
-    if (placeName.includes('용산구') || placeName.includes('한강대로')) {
-      console.log(`[${index + 1}] 하드코딩된 좌표 사용 (조건: ${placeName})`);
-      console.log('window.map 존재 여부:', !!window.map);
-      
-      if (!window.map) {
-        console.error('지도 객체가 없습니다!');
-        return;
-      }
-      
-      const lat = 37.5275;  // 용산구 한강대로39길 2-13 근처 좌표
-      const lng = 126.9654;
-      console.log(`[${index + 1}] 좌표:`, { lat, lng });
-      
-      const point = new naver.maps.LatLng(lat, lng);
-      console.log(`[${index + 1}] 포인트 객체 생성:`, point);
-      
-      if (window.marker) {
-        console.log(`[${index + 1}] 기존 마커 제거`);
-        window.marker.setMap(null);
-      }
-
-      console.log(`[${index + 1}] 새 마커 생성 시작`);
-      try {
-        window.marker = new naver.maps.Marker({
-          position: point,
-          map: window.map
-        });
-        console.log(`[${index + 1}] 마커 생성 성공:`, window.marker);
-      } catch (error) {
-        console.error(`[${index + 1}] 마커 생성 실패:`, error);
-        return;
-      }
-
-      console.log(`[${index + 1}] 지도 중심 이동 시작`);
-      try {
-        window.map.setCenter(point);
-        window.map.setZoom(15);
-        console.log(`[${index + 1}] 지도 중심 이동 완료`);
-      } catch (error) {
-        console.error(`[${index + 1}] 지도 중심 이동 실패:`, error);
-      }
-      
-      console.log(`[${index + 1}] 마커 생성 완료`);
-      return;
+    // 1. 원본 검색어로 시도
+    let result = await trySearchPlace(placeName);
+    
+    if (!result && placeName.includes(' ')) {
+      // 2. 공백 제거해서 시도
+      const noSpaceName = placeName.replace(/\s+/g, '');
+      console.log(`공백 제거 검색: "${noSpaceName}"`);
+      result = await trySearchPlace(noSpaceName);
     }
     
-    fetch('/search-place?query=' + encodeURIComponent(placeName))
-      .then(res => {
-        console.log(`[${index + 1}] 네이버 API 응답 상태:`, res.status);
-        return res.json();
-      })
-      .then(data => {
-        console.log(`[${index + 1}] 네이버 API 응답 데이터:`, data);
-        
-        if (!data.items || data.items.length === 0) {
-          console.log(`[${index + 1}] 검색 결과 없음`);
-          return;
+    if (!result && placeName.includes('구') && placeName.includes('로')) {
+      // 3. 주소인 경우 구와 로/길만 추출해서 시도
+      const simplified = placeName.match(/([가-힣]+구)\s+([가-힣A-Za-z0-9]+(?:로|길))/);
+      if (simplified) {
+        const simpleQuery = `${simplified[1]} ${simplified[2]}`;
+        console.log(`간소화된 주소 검색: "${simpleQuery}"`);
+        result = await trySearchPlace(simpleQuery);
+      }
+    }
+    
+    if (!result && placeName.length > 10) {
+      // 4. 너무 긴 검색어는 앞부분만 시도
+      const shortName = placeName.substring(0, 10);
+      console.log(`짧은 이름 검색: "${shortName}"`);
+      result = await trySearchPlace(shortName);
+    }
+    
+    if (!result && /[가-힣]+(타르트|카페|베이커리|빵집)/.test(placeName)) {
+      // 5. 업종별 키워드 포함 검색
+      const businessMatch = placeName.match(/([가-힣A-Za-z0-9]+)(타르트|카페|베이커리|빵집)/);
+      if (businessMatch) {
+        const businessName = businessMatch[1] + businessMatch[2];
+        console.log(`업종 키워드 검색: "${businessName}"`);
+        result = await trySearchPlace(businessName);
+      }
+    }
+    
+    if (result) {
+      console.log(`✅ 검색 성공! "${placeName}"으로 장소를 찾았습니다.`);
+      return; // 성공하면 더 이상 시도하지 않음
+    }
+  }
+  
+  console.log('❌ 모든 검색어로 시도했지만 장소를 찾을 수 없습니다.');
+}
+
+// 개별 장소 검색 함수
+async function trySearchPlace(query) {
+  try {
+    console.log(`네이버 API 검색 시도: "${query}"`);
+    
+    const response = await fetch('/search-place?query=' + encodeURIComponent(query));
+    const data = await response.json();
+    
+    console.log(`검색 결과:`, data.items?.length || 0, '개');
+    
+    if (data.items && data.items.length > 0) {
+      const item = data.items[0];
+      console.log(`선택된 장소:`, item.title);
+      
+      const lng = parseFloat(item.mapx) / 1e7;
+      const lat = parseFloat(item.mapy) / 1e7;
+      
+      // 지도에 마커 표시
+      const title = item.title.replace(/<[^>]*>/g, '');
+      const address = item.roadAddress || item.address;
+      
+      console.log('지도 마커 생성:', { lat, lng, title, address });
+      
+      // markOnMap 함수가 있다면 호출, 없으면 기본 마커 생성
+      if (typeof markOnMap === 'function') {
+        markOnMap(lat, lng, title, address);
+      } else {
+        // 기본 마커 생성 로직
+        if (window.map) {
+          const position = new naver.maps.LatLng(lat, lng);
+          
+          // 기존 마커 제거
+          if (window.marker) {
+            window.marker.setMap(null);
+          }
+          
+          // 새 마커 생성
+          window.marker = new naver.maps.Marker({
+            position: position,
+            map: window.map,
+            title: title
+          });
+          
+          // 지도 중심 이동
+          window.map.setCenter(position);
+          window.map.setZoom(16);
+          
+          console.log('✅ 마커가 지도에 표시되었습니다!');
         }
-
-        const item = data.items[0];
-        console.log(`[${index + 1}] 선택된 아이템:`, item);
-        
-        const lng = parseFloat(item.mapx) / 1e7;
-        const lat = parseFloat(item.mapy) / 1e7;
-        console.log(`[${index + 1}] 계산된 좌표:`, { lat, lng });
-        
-        const point = new naver.maps.LatLng(lat, lng);
-        
-        // 기존 마커 제거
-        if (window.marker) {
-          console.log(`[${index + 1}] 기존 마커 제거`);
-          window.marker.setMap(null);
-        }
-
-        // 새 마커 생성
-        console.log(`[${index + 1}] 새 마커 생성`);
-        window.marker = new naver.maps.Marker({
-          position: point,
-          map: window.map
-        });
-
-        // 지도 중심 이동
-        console.log(`[${index + 1}] 지도 중심 이동`);
-        window.map.setCenter(point);
-        window.map.setZoom(15);
-        
-        console.log(`[${index + 1}] 마커 생성 완료`);
-      })
-      .catch(error => {
-        console.error(`[${index + 1}] 에러 발생:`, error);
-      });
-  });
+      }
+      
+      return true; // 성공
+    }
+    
+    return false; // 실패
+  } catch (error) {
+    console.error(`검색 중 오류:`, error);
+    return false;
+  }
 } 

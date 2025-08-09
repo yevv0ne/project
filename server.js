@@ -48,51 +48,127 @@ app.post('/extract', async (req, res) => {
     try {
         const { url } = req.body;
         
-        // User-Agent 설정
-        const headers = {
+        // Instagram URL 감지
+        const isInstagram = url.includes('instagram.com');
+        
+        // URL별 맞춤 헤더 설정
+        const headers = isInstagram ? {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate',
+            'Referer': 'https://www.instagram.com/',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        } : {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
 
-        const response = await axios.get(url, { headers });
+        console.log(`${isInstagram ? 'Instagram' : '일반'} URL 처리:`, url);
+        
+        const response = await axios.get(url, { 
+            headers,
+            timeout: 10000,
+            maxRedirects: 5
+        });
         const $ = cheerio.load(response.data);
         
-        // 메타 태그에서 설명 추출
-        const description = $('meta[property="og:description"]').attr('content');
+        let extractedText = '';
+        let hashtags = '';
         
-        if (description) {
+        if (isInstagram) {
+            // Instagram 전용 추출 로직
+            console.log('Instagram 전용 파싱 시작...');
+            
+            // 1. 메타 태그들 확인
+            const ogDescription = $('meta[property="og:description"]').attr('content');
+            const metaDescription = $('meta[name="description"]').attr('content');
+            const ogTitle = $('meta[property="og:title"]').attr('content');
+            
+            console.log('OG Description:', ogDescription);
+            console.log('Meta Description:', metaDescription);
+            console.log('OG Title:', ogTitle);
+            
+            // 2. JSON-LD 스크립트 태그에서 추출 시도
+            let jsonLdData = null;
+            $('script[type="application/ld+json"]').each((i, elem) => {
+                try {
+                    const jsonText = $(elem).html();
+                    const data = JSON.parse(jsonText);
+                    if (data && (data.caption || data.description || data.name)) {
+                        jsonLdData = data;
+                        console.log('JSON-LD 데이터 발견:', data);
+                    }
+                } catch (e) {
+                    // JSON 파싱 실패는 무시
+                }
+            });
+            
+            // 3. window._sharedData에서 추출 시도
+            const scriptTags = $('script:not([src])').toArray();
+            for (let script of scriptTags) {
+                const scriptContent = $(script).html();
+                if (scriptContent && scriptContent.includes('window._sharedData')) {
+                    try {
+                        // _sharedData에서 데이터 추출
+                        const match = scriptContent.match(/window\._sharedData\s*=\s*({.*?});/);
+                        if (match) {
+                            const sharedData = JSON.parse(match[1]);
+                            console.log('_sharedData 발견, 분석 중...');
+                            // 여기서 포스트 데이터 추출 로직 추가 가능
+                        }
+                    } catch (e) {
+                        console.log('_sharedData 파싱 실패');
+                    }
+                }
+            }
+            
+            // 4. 우선순위에 따라 텍스트 선택
+            if (jsonLdData && jsonLdData.caption) {
+                extractedText = jsonLdData.caption;
+            } else if (ogDescription && ogDescription.length > 10) {
+                extractedText = ogDescription;
+            } else if (metaDescription && metaDescription.length > 10) {
+                extractedText = metaDescription;
+            } else if (ogTitle && ogTitle.length > 5) {
+                extractedText = ogTitle;
+            }
+            
+            console.log('Instagram에서 추출된 텍스트:', extractedText);
+            
+        } else {
+            // 일반 URL 처리 (기존 로직)
+            const description = $('meta[property="og:description"]').attr('content');
+            
+            if (description) {
+                extractedText = description;
+            } else {
+                const article = $('article');
+                if (article.length > 0) {
+                    extractedText = article.text().trim();
+                }
+            }
+        }
+        
+        if (extractedText) {
             // 해시태그와 본문 분리
-            const parts = description.split('#');
-            const mainText = parts[0].trim();
-            const hashtags = parts.slice(1).map(tag => '#' + tag.trim()).join(' ');
+            const hashtagMatches = extractedText.match(/#[\w가-힣]+/g) || [];
+            hashtags = hashtagMatches.join(' ');
+            const mainText = extractedText.replace(/#[\w가-힣]+/g, '').trim();
             
             res.json({
                 success: true,
                 data: {
                     text: mainText,
-                    hashtags: hashtags
+                    hashtags: hashtags,
+                    fullText: extractedText
                 }
             });
         } else {
-            // 메타 태그가 없는 경우 다른 방법으로 시도
-            const article = $('article');
-            if (article.length > 0) {
-                const text = article.text().trim();
-                const hashtags = text.match(/#[\w가-힣]+/g) || [];
-                const mainText = text.replace(/#[\w가-힣]+/g, '').trim();
-                
-                res.json({
-                    success: true,
-                    data: {
-                        text: mainText,
-                        hashtags: hashtags.join(' ')
-                    }
-                });
-            } else {
-                res.json({
-                    success: false,
-                    error: '포스트 내용을 찾을 수 없습니다.'
-                });
-            }
+            res.json({
+                success: false,
+                error: '포스트 내용을 찾을 수 없습니다.'
+            });
         }
     } catch (error) {
         console.error('Error:', error.message);
@@ -151,8 +227,8 @@ app.post('/extract-image', upload.single('image'), async (req, res) => {
 // 네이버 지역(장소) 검색 프록시 엔드포인트
 app.get('/search-place', async (req, res) => {
     const query = req.query.query;
-    const clientId = 'hk7y7c86pt';         // 여기에 본인 Client ID 입력
-    const clientSecret = 'ZW5N41LpDlvkkgnlCOCuUfIPeNAHlEsmkJIoGuMj'; // 여기에 본인 Client Secret 입력
+    const clientId = 'dv09yJvf1T8W4_pyPYjs';         // 여기에 본인 Client ID 입력
+    const clientSecret = 'k4ncKS6rkV'; // 여기에 본인 Client Secret 입력
 
     if (!query) {
         return res.status(400).json({ error: '검색어가 필요합니다.' });
@@ -183,6 +259,46 @@ app.get('/search-place', async (req, res) => {
         } else {
             res.status(500).json({ error: '장소 검색 실패', details: error.message });
         }
+    }
+});
+
+// 날씨 정보 프록시 엔드포인트
+app.get('/weather', async (req, res) => {
+    const city = req.query.city || 'Seoul';
+    const API_KEY = 'e2121f6f8e954ebfb1b115328250808'; // OpenWeatherMap API 키
+    
+    try {
+        console.log('날씨 API 요청:', city);
+        
+        const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather`, {
+            params: {
+                q: city,
+                appid: API_KEY,
+                units: 'metric',
+                lang: 'kr'
+            }
+        });
+        
+        console.log('날씨 API 응답:', response.status);
+        res.json(response.data);
+    } catch (error) {
+        console.error('날씨 API 에러:', error.response?.status, error.response?.data);
+        
+        // 에러 시 기본 날씨 정보 반환
+        res.json({
+            name: '서울',
+            main: {
+                temp: 23,
+                humidity: 45
+            },
+            weather: [{
+                description: '맑음'
+            }],
+            wind: {
+                speed: 2
+            },
+            cod: 200
+        });
     }
 });
 

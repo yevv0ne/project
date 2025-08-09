@@ -59,36 +59,95 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// 장소명 후보 추출 함수 (간단 예시: 한글+역/대/시청/공원 등 키워드)
+// 장소명 후보 추출 함수 (Instagram 텍스트 최적화)
 function extractPlaceCandidates(text) {
-    // 주소 패턴 (예: 서울 용산구 한강대로39길 2-13)
-    const addressPattern = /([가-힣]+(시|도|특별시|광역시)\s*)?[가-힣]+(구|군)\s*[가-힣A-Za-z0-9\-]+(로|길|대로)\s*\d+[\-\d]*(?:[가-힣]|\s*\d*)?/g;
-    const addressMatches = text.match(addressPattern) || [];
-
-    // 해시태그 패턴 (예: #나누미떡볶이)
-    const hashtagPattern = /#([가-힣A-Za-z0-9]+)/g;
-    const hashtagMatches = [];
-    let match;
-    while ((match = hashtagPattern.exec(text)) !== null) {
-        hashtagMatches.push(match[1]);
+    console.log('장소 추출 대상 텍스트:', text);
+    
+    const candidates = [];
+    
+    // 1. 매장명 패턴 (▪️매장: 뒤에 오는 이름)
+    const storePattern = /(?:매장|상호|업체|가게)\s*[:：]\s*([가-힣A-Za-z0-9\s]+)/g;
+    let storeMatch;
+    while ((storeMatch = storePattern.exec(text)) !== null) {
+        const storeName = storeMatch[1].trim();
+        if (storeName.length > 1) {
+            candidates.push(storeName);
+            console.log('매장명 발견:', storeName);
+        }
     }
-
-    // 장소명 패턴 (예: 현선이네, 강남역 등)
-    const placePattern = /[가-힣A-Za-z0-9]+(역|대|시청|공원|타워|센터|관|병원|교|마을|시장|공항|터미널|호텔|빌딩|플라자|몰|스퀘어|하우스|맨션)/g;
-    const placeMatches = text.match(placePattern) || [];
-
-    // 잘못된 패턴 필터링 (예: "취향대", "한강대" 등은 제외)
-    const filteredPlaceMatches = placeMatches.filter(place => {
-        // 너무 짧은 단어 제외 (2글자 이하)
-        if (place.length <= 2) return false;
-        // 특정 잘못된 패턴 제외
-        const excludePatterns = ['취향대', '한강대', '대호'];
-        return !excludePatterns.some(pattern => place.includes(pattern));
+    
+    // 2. 완전한 주소 패턴 (도로명 주소)
+    const fullAddressPattern = /([가-힣]+(시|도|특별시|광역시)\s+)?[가-힣]+(구|군|시)\s+[가-힣A-Za-z0-9\s\-]+(로|길|대로)\s+\d+[\-\d\s]*(?:[가-힣]|\d)*\s*(?:\d*층)?\s*(?:\d*호)?/g;
+    const fullAddresses = text.match(fullAddressPattern) || [];
+    fullAddresses.forEach(addr => {
+        const cleanAddr = addr.trim();
+        if (cleanAddr.length > 5) {
+            candidates.push(cleanAddr);
+            console.log('완전한 주소 발견:', cleanAddr);
+        }
     });
-
-    // 중복 제거
-    const allMatches = [...addressMatches, ...hashtagMatches, ...filteredPlaceMatches];
-    return [...new Set(allMatches)];
+    
+    // 3. 위치 정보 패턴 (▪️위치: 뒤에 오는 주소)
+    const locationPattern = /(?:위치|주소|address)\s*[:：]\s*([가-힣A-Za-z0-9\s\-]+(?:로|길|대로)\s*\d+[\s\-\d]*(?:[가-힣]|\d)*(?:\s*\d*층)?\s*(?:\d*호)?)/g;
+    let locationMatch;
+    while ((locationMatch = locationPattern.exec(text)) !== null) {
+        const location = locationMatch[1].trim();
+        if (location.length > 5) {
+            candidates.push(location);
+            console.log('위치 정보 발견:', location);
+        }
+    }
+    
+    // 4. 단순 주소 패턴 (구+동/로/길 조합)
+    const simpleAddressPattern = /[가-힣]+(구|군)\s+[가-힣A-Za-z0-9\-]+(동|로|길)\s*\d*/g;
+    const simpleAddresses = text.match(simpleAddressPattern) || [];
+    simpleAddresses.forEach(addr => {
+        const cleanAddr = addr.trim();
+        if (cleanAddr.length > 3) {
+            candidates.push(cleanAddr);
+            console.log('단순 주소 발견:', cleanAddr);
+        }
+    });
+    
+    // 5. 해시태그에서 장소명 추출
+    const hashtagPattern = /#([가-힣A-Za-z0-9]+)/g;
+    let hashMatch;
+    while ((hashMatch = hashtagPattern.exec(text)) !== null) {
+        const hashtag = hashMatch[1];
+        if (hashtag.length > 2) {
+            candidates.push(hashtag);
+            console.log('해시태그 장소 발견:', hashtag);
+        }
+    }
+    
+    // 6. 일반적인 상호명 패턴 (카페, 식당 등)
+    const businessPattern = /[가-힣A-Za-z0-9]+(카페|커피|식당|맛집|베이커리|빵집|타르트|케이크|디저트|브런치|레스토랑)/g;
+    const businesses = text.match(businessPattern) || [];
+    businesses.forEach(business => {
+        if (business.length > 2) {
+            candidates.push(business);
+            console.log('상호명 발견:', business);
+        }
+    });
+    
+    // 7. 특정 키워드가 포함된 장소명
+    const placeKeywords = ['역', '대학교', '대', '시청', '공원', '타워', '센터', '관', '병원', '교', '마을', '시장', '공항', '터미널', '호텔', '빌딩', '플라자', '몰', '스퀘어', '하우스', '맨션'];
+    const placePattern = new RegExp(`[가-힣A-Za-z0-9]+(${placeKeywords.join('|')})`, 'g');
+    const places = text.match(placePattern) || [];
+    places.forEach(place => {
+        if (place.length > 2) {
+            candidates.push(place);
+            console.log('키워드 장소 발견:', place);
+        }
+    });
+    
+    // 중복 제거 및 정리
+    const uniqueCandidates = [...new Set(candidates)]
+        .filter(candidate => candidate.length > 1)
+        .map(candidate => candidate.replace(/\s+/g, ' ').trim());
+    
+    console.log('최종 장소 후보들:', uniqueCandidates);
+    return uniqueCandidates;
 }
 
 // 이미지 처리

@@ -150,114 +150,51 @@ function extractPlaceCandidates(text) {
     return uniqueCandidates;
 }
 
-// 이미지 처리 (붙여넣기 파일 > 파일 선택 순으로 우선)
+// 이미지 처리
 async function processImage() {
-  const fileInput = document.getElementById('imageFile');
-  const file = droppedImageFile || (typeof pastedImageFile !== 'undefined' && pastedImageFile) || (fileInput?.files?.[0]);
+    const file = imageFile.files[0];
+    if (!file) {
+        alert('이미지 파일을 선택해주세요.');
+        return;
+    }
 
-  if (!file) {
-    alert('이미지 파일을 선택하거나, 이미지를 복사해서 [Ctrl+V]로 붙여넣어주세요.');
-    return;
-  }
+    try {
+        showLoading();
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                console.log('=== 이미지 처리 시작 ===');
+                // OCR로 텍스트 추출
+                const extractedText = await ocrSpaceImage(e.target.result);
+                console.log('OCR 추출 결과:', extractedText);
+                
+                if (!extractedText) {
+                    throw new Error('이미지에서 텍스트를 추출할 수 없습니다.');
+                }
 
-  try {
-    showLoading();
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        console.log('=== 이미지 처리 시작 === (붙여넣기/파일)', file.name || file.type || '');
-        // OCR로 텍스트 추출
-        const extractedText = await ocrSpaceImage(e.target.result, 'kor');
-        console.log('OCR 추출 결과:', extractedText);
-
-        if (!extractedText) {
-          throw new Error('이미지에서 텍스트를 추출할 수 없습니다.');
-        }
-
-        // 장소명 후보 추출 및 지도에 마커 표시
-        const places = extractPlaceCandidates(extractedText);
-        console.log('추출된 장소명 후보:', places);
-
-        if (places.length > 0) {
-          console.log('지도에 마커 표시 시작...');
-          markPlacesFromExtracted(places);
-        } else {
-          console.log('추출된 장소명이 없습니다.');
-        }
-        showResults(places);
-      } catch (error) {
-        console.error('이미지 처리 중 오류:', error);
+                // 장소명 후보 추출 및 지도에 마커 표시
+                const places = extractPlaceCandidates(extractedText);
+                console.log('추출된 장소명 후보:', places);
+                console.log('추출된 장소명 후보 (상세):', JSON.stringify(places, null, 2));
+                
+                if (places.length > 0) {
+                    console.log('지도에 마커 표시 시작...');
+                    markPlacesFromExtracted(places);
+                } else {
+                    console.log('추출된 장소명이 없습니다.');
+                }
+                showResults(places);
+            } catch (error) {
+                console.error('이미지 처리 중 오류:', error);
+                showError(error.message);
+            }
+        };
+        reader.readAsDataURL(file);
+    } catch (error) {
+        console.error('이미지 처리 오류:', error);
         showError(error.message);
-      }
-    };
-    reader.readAsDataURL(file);
-  } catch (error) {
-    console.error('이미지 처리 오류:', error);
-    showError(error.message);
-  }
-}
-
-
-let pastedImageFile = null;
-
-// 파일 → 미리보기 표시
-function previewFromFile(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = document.getElementById('imagePreview');
-    if (img) {
-      img.src = e.target.result;
-      img.style.display = 'block';
     }
-  };
-  reader.readAsDataURL(file);
 }
-
-// 붙여넣기 이벤트(페이지 어디서든 Ctrl+V 가능)
-window.addEventListener('paste', (e) => {
-  const items = e.clipboardData?.items || [];
-  for (const item of items) {
-    if (item.type && item.type.startsWith('image/')) {
-      const file = item.getAsFile();
-      if (file) {
-        pastedImageFile = file;
-
-        // 이미지 모드 on
-        const imageInputRadio = document.getElementById('imageInput');
-        const imageUploadSection = document.getElementById('imageUploadSection');
-        const urlInputSection = document.getElementById('urlInputSection');
-        if (imageInputRadio) imageInputRadio.checked = true;
-        if (imageUploadSection) imageUploadSection.style.display = 'block';
-        if (urlInputSection) urlInputSection.style.display = 'none';
-
-        // 파일 선택된 것처럼 미리보기
-        previewFromFile(file);
-
-        // 파일 인풋에 표시만(값 주입은 보안상 불가)
-        const fileInput = document.getElementById('imageFile');
-        if (fileInput) {
-          // 파일명을 힌트로 표시하고 싶다면 title로
-          fileInput.title = file.name;
-        }
-        // 안내
-        console.log('클립보드에서 이미지 붙여넣기 감지:', file.type, file.size, 'bytes');
-        // 필요하면 토스트/알림:
-        // alert('이미지가 붙여넣기 되었습니다. [처리하기]를 눌러주세요.');
-      }
-      break;
-    }
-  }
-});
-
-// 파일 선택 시에는 pastedImageFile 초기화 (우선순위: 최근 선택/붙여넣기)
-document.addEventListener('DOMContentLoaded', () => {
-  const fileInput = document.getElementById('imageFile');
-  if (fileInput) {
-    fileInput.addEventListener('change', () => {
-      pastedImageFile = null;
-    });
-  }
-});
 
 // URL 처리
 async function processUrl() {
@@ -818,52 +755,3 @@ showResults = function(locations) {
     }
   });
 };
-
-/***** 드래그&드롭 업로드 *****/
-let droppedImageFile = null;
-
-// 기존 미리보기 함수가 없다면 앱에 추가되어 있어야 합니다.
-function previewFromFile(file){
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = document.getElementById('imagePreview');
-    if (img) { img.src = e.target.result; img.style.display = 'block'; }
-  };
-  reader.readAsDataURL(file);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const dropZone = document.getElementById('dropZone');
-  if (!dropZone) return;
-
-  const onDragEnterOver = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); };
-  const onDragLeaveDrop = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); };
-
-  ['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, onDragEnterOver));
-  ['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, onDragLeaveDrop));
-
-  dropZone.addEventListener('drop', (e) => {
-    const file = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
-    if (!file) { alert('이미지 파일만 가능합니다.'); return; }
-    droppedImageFile = file;
-
-    // 이미지 모드로 전환
-    const imageInputRadio = document.getElementById('imageInput');
-    const imageUploadSection = document.getElementById('imageUploadSection');
-    const urlInputSection = document.getElementById('urlInputSection');
-    if (imageInputRadio) imageInputRadio.checked = true;
-    if (imageUploadSection) imageUploadSection.style.display = 'block';
-    if (urlInputSection) urlInputSection.style.display = 'none';
-
-    // 미리보기
-    previewFromFile(file);
-  });
-
-  // 파일 인풋을 새로 고르면 드롭/붙여넣기 파일 우선순위 해제
-  const fileInput = document.getElementById('imageFile');
-  if (fileInput) {
-    fileInput.addEventListener('change', () => {
-      droppedImageFile = null;
-    });
-  }
-});

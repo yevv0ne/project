@@ -32,23 +32,32 @@ document.addEventListener('DOMContentLoaded', function() {
         imageFile.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imagePreview.src = e.target.result;
-                    imagePreview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
+                handleImageFile(file);
             }
         });
     }
+    
+    // 재추출 버튼 초기 상태 설정
+    updateReextractButtonState();
+    
+    // 드래그앤드롭 기능 초기화
+    initDragAndDrop();
+    
+    // 클립보드 붙여넣기 기능 초기화
+    initClipboardPaste();
 
-    // 처리 버튼 클릭 이벤트
+    // 재추출 버튼 클릭 이벤트
     if (processButton) {
         processButton.addEventListener('click', async () => {
-            if (imageInput.checked) {
+            // 현재 이미지가 있는지 확인
+            if (imagePreview.src && imagePreview.src !== 'data:') {
+                console.log('재추출 시작: 이미지 재처리...');
                 await processImage();
-            } else {
+            } else if (urlInputField && urlInputField.value.trim()) {
+                console.log('재추출 시작: URL 재처리...');
                 await processUrl();
+            } else {
+                alert('재추출할 이미지나 URL이 없습니다.\n먼저 이미지를 업로드하거나 URL을 입력해주세요.');
             }
         });
     }
@@ -58,6 +67,123 @@ document.addEventListener('DOMContentLoaded', function() {
         initMap();
     }
 });
+
+// 이미지 파일 처리 함수
+function handleImageFile(file) {
+    if (!file.type.startsWith('image/')) {
+        alert('이미지 파일만 업로드 가능합니다.');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        imagePreview.src = e.target.result;
+        imagePreview.style.display = 'block';
+        
+        // 파일 선택 상태 업데이트
+        updateFileSelectionStatus(file.name);
+        
+        // 이미지 업로드 시 자동으로 OCR 처리 시작
+        console.log('이미지 업로드 완료, 자동 OCR 처리 시작...');
+        await processImage();
+    };
+    reader.readAsDataURL(file);
+}
+
+// 파일 선택 상태 업데이트
+function updateFileSelectionStatus(fileName) {
+    const statusElement = document.querySelector('#imageUploadSection .text-muted.small');
+    if (statusElement) {
+        statusElement.textContent = fileName || '선택된 파일 없음';
+    }
+    
+    // 재추출 버튼 상태 업데이트
+    updateReextractButtonState();
+}
+
+// 재추출 버튼 상태 업데이트
+function updateReextractButtonState() {
+    const processButton = document.getElementById('processButton');
+    if (!processButton) return;
+    
+    const hasImage = imagePreview && imagePreview.src && imagePreview.src !== 'data:';
+    const hasUrl = urlInputField && urlInputField.value.trim();
+    
+    if (hasImage || hasUrl) {
+        processButton.disabled = false;
+        processButton.classList.remove('btn-secondary');
+        processButton.classList.add('btn-warning');
+    } else {
+        processButton.disabled = true;
+        processButton.classList.remove('btn-warning');
+        processButton.classList.add('btn-secondary');
+    }
+}
+
+// 드래그앤드롭 기능 초기화
+function initDragAndDrop() {
+    const dragDropArea = document.getElementById('dragDropArea');
+    if (!dragDropArea) return;
+    
+    // 드래그 이벤트
+    dragDropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dragDropArea.classList.add('dragover');
+    });
+    
+    dragDropArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragDropArea.classList.remove('dragover');
+    });
+    
+    dragDropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDropArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                // 파일 입력 필드에 파일 설정
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                imageFile.files = dataTransfer.files;
+                
+                // 이미지 처리 및 자동 OCR 시작
+                handleImageFile(file);
+            } else {
+                alert('이미지 파일만 드롭 가능합니다.');
+            }
+        }
+    });
+    
+    // 클릭으로도 파일 선택 가능
+    dragDropArea.addEventListener('click', () => {
+        imageFile.click();
+    });
+}
+
+// 클립보드 붙여넣기 기능 초기화
+function initClipboardPaste() {
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    // 파일 입력 필드에 파일 설정
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    imageFile.files = dataTransfer.files;
+                    
+                    // 이미지 처리 및 자동 OCR 시작
+                    handleImageFile(file);
+                    break;
+                }
+            }
+        }
+    });
+}
 
 // 장소명 후보 추출 함수 (Instagram 텍스트 최적화)
 function extractPlaceCandidates(text) {

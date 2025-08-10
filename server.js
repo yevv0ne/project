@@ -227,8 +227,8 @@ app.post('/extract-image', upload.single('image'), async (req, res) => {
 // 네이버 지역(장소) 검색 프록시 엔드포인트
 app.get('/search-place', async (req, res) => {
     const query = req.query.query;
-    const clientId = 'amyjiho@naver.com';         // 여기에 본인 Client ID 입력
-    const clientSecret = 'NaverC.14jj'; // 여기에 본인 Client Secret 입력
+    const clientId = 'dv09yJvf1T8W4_pyPYjs';         // 여기에 본인 Client ID 입력
+    const clientSecret = 'k4ncKS6rkV'; // 여기에 본인 Client Secret 입력
 
     if (!query) {
         return res.status(400).json({ error: '검색어가 필요합니다.' });

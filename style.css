@@ -125,3 +125,10 @@ input[type="text"] {
   color: #333;
   border: 1px solid #e0dff0;
 }
+
+/* 드래그&드롭 */
+.drop-zone{
+  margin-top:12px; padding:18px; text-align:center; border:2px dashed #d9c7ff;
+  border-radius:14px; background:#faf7ff; color:#7a5cc9; font-weight:600;
+}
+.drop-zone.dragover{ background:#efe8ff; border-color:#b39ddb; }

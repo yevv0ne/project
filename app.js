@@ -150,51 +150,114 @@ function extractPlaceCandidates(text) {
     return uniqueCandidates;
 }
 
-// 이미지 처리
+// 이미지 처리 (붙여넣기 파일 > 파일 선택 순으로 우선)
 async function processImage() {
-    const file = imageFile.files[0];
-    if (!file) {
-        alert('이미지 파일을 선택해주세요.');
-        return;
-    }
+  const fileInput = document.getElementById('imageFile');
+  const file = droppedImageFile || (typeof pastedImageFile !== 'undefined' && pastedImageFile) || (fileInput?.files?.[0]);
 
-    try {
-        showLoading();
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                console.log('=== 이미지 처리 시작 ===');
-                // OCR로 텍스트 추출
-                const extractedText = await ocrSpaceImage(e.target.result);
-                console.log('OCR 추출 결과:', extractedText);
-                
-                if (!extractedText) {
-                    throw new Error('이미지에서 텍스트를 추출할 수 없습니다.');
-                }
+  if (!file) {
+    alert('이미지 파일을 선택하거나, 이미지를 복사해서 [Ctrl+V]로 붙여넣어주세요.');
+    return;
+  }
 
-                // 장소명 후보 추출 및 지도에 마커 표시
-                const places = extractPlaceCandidates(extractedText);
-                console.log('추출된 장소명 후보:', places);
-                console.log('추출된 장소명 후보 (상세):', JSON.stringify(places, null, 2));
-                
-                if (places.length > 0) {
-                    console.log('지도에 마커 표시 시작...');
-                    markPlacesFromExtracted(places);
-                } else {
-                    console.log('추출된 장소명이 없습니다.');
-                }
-                showResults(places);
-            } catch (error) {
-                console.error('이미지 처리 중 오류:', error);
-                showError(error.message);
-            }
-        };
-        reader.readAsDataURL(file);
-    } catch (error) {
-        console.error('이미지 처리 오류:', error);
+  try {
+    showLoading();
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        console.log('=== 이미지 처리 시작 === (붙여넣기/파일)', file.name || file.type || '');
+        // OCR로 텍스트 추출
+        const extractedText = await ocrSpaceImage(e.target.result, 'kor');
+        console.log('OCR 추출 결과:', extractedText);
+
+        if (!extractedText) {
+          throw new Error('이미지에서 텍스트를 추출할 수 없습니다.');
+        }
+
+        // 장소명 후보 추출 및 지도에 마커 표시
+        const places = extractPlaceCandidates(extractedText);
+        console.log('추출된 장소명 후보:', places);
+
+        if (places.length > 0) {
+          console.log('지도에 마커 표시 시작...');
+          markPlacesFromExtracted(places);
+        } else {
+          console.log('추출된 장소명이 없습니다.');
+        }
+        showResults(places);
+      } catch (error) {
+        console.error('이미지 처리 중 오류:', error);
         showError(error.message);
-    }
+      }
+    };
+    reader.readAsDataURL(file);
+  } catch (error) {
+    console.error('이미지 처리 오류:', error);
+    showError(error.message);
+  }
 }
+
+
+let pastedImageFile = null;
+
+// 파일 → 미리보기 표시
+function previewFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = document.getElementById('imagePreview');
+    if (img) {
+      img.src = e.target.result;
+      img.style.display = 'block';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// 붙여넣기 이벤트(페이지 어디서든 Ctrl+V 가능)
+window.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items || [];
+  for (const item of items) {
+    if (item.type && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) {
+        pastedImageFile = file;
+
+        // 이미지 모드 on
+        const imageInputRadio = document.getElementById('imageInput');
+        const imageUploadSection = document.getElementById('imageUploadSection');
+        const urlInputSection = document.getElementById('urlInputSection');
+        if (imageInputRadio) imageInputRadio.checked = true;
+        if (imageUploadSection) imageUploadSection.style.display = 'block';
+        if (urlInputSection) urlInputSection.style.display = 'none';
+
+        // 파일 선택된 것처럼 미리보기
+        previewFromFile(file);
+
+        // 파일 인풋에 표시만(값 주입은 보안상 불가)
+        const fileInput = document.getElementById('imageFile');
+        if (fileInput) {
+          // 파일명을 힌트로 표시하고 싶다면 title로
+          fileInput.title = file.name;
+        }
+        // 안내
+        console.log('클립보드에서 이미지 붙여넣기 감지:', file.type, file.size, 'bytes');
+        // 필요하면 토스트/알림:
+        // alert('이미지가 붙여넣기 되었습니다. [처리하기]를 눌러주세요.');
+      }
+      break;
+    }
+  }
+});
+
+// 파일 선택 시에는 pastedImageFile 초기화 (우선순위: 최근 선택/붙여넣기)
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('imageFile');
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      pastedImageFile = null;
+    });
+  }
+});
 
 // URL 처리
 async function processUrl() {
@@ -529,3 +592,278 @@ function showError(message) {
     hideLoading();
     alert(message);
 } 
+
+const MY_PLACES_KEY = 'myPlaces:v1';
+let myPlaces = loadMyPlaces();
+const myPlaceListEl = document.getElementById('myPlaceList');
+const myListSortByEl = document.getElementById('myListSortBy');
+const myListOrderEl  = document.getElementById('myListOrder');
+
+function loadMyPlaces() {
+  try {
+    return JSON.parse(localStorage.getItem(MY_PLACES_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function persistMyPlaces() {
+  localStorage.setItem(MY_PLACES_KEY, JSON.stringify(myPlaces));
+}
+
+function inferRegion(address) {
+  if (!address) return '';
+  // 우선 '구/군'을 잡고, 없으면 시/시·도
+  const m1 = address.match(/[가-힣A-Za-z]+(구|군)/);
+  if (m1) return m1[0];
+  const m2 = address.match(/[가-힣A-Za-z]+(시|특별시|광역시|도)/);
+  if (m2) return m2[0];
+  return '';
+}
+
+function inferCategory(name = '', type = '') {
+  const source = `${name} ${type}`.toLowerCase();
+  if (/(카페|coffee|브런치|디저트|베이커리|빵|tart|케이크)/i.test(source)) return '카페/디저트';
+  if (/(맛집|식당|레스토랑|밥집|한식|중식|일식|양식|고기|포차|분식|숯불|bar|pub)/i.test(source)) return '음식점';
+  if (/(호텔|모텔|게스트하우스|리조트)/i.test(source)) return '숙박';
+  if (/(공원|시장|플라자|몰|스퀘어|타워|갤러리|박물관)/i.test(source)) return '명소/여가';
+  return type || '기타';
+}
+
+function upsertPlace(place) {
+  // place: {id?, name, address, lat, lng, region, category, createdAt}
+  const key = (place.name || '') + '|' + (place.address || '');
+  const idx = myPlaces.findIndex(p => ((p.name||'')+'|'+(p.address||'')) === key);
+  if (idx >= 0) {
+    myPlaces[idx] = { ...myPlaces[idx], ...place }; // 업데이트
+  } else {
+    myPlaces.push(place);
+  }
+  persistMyPlaces();
+  renderMyPlaces();
+}
+
+function removePlaceAt(i) {
+  myPlaces.splice(i, 1);
+  persistMyPlaces();
+  renderMyPlaces();
+}
+
+function sortMyPlaces(list, sortBy, order) {
+  const sign = order === 'asc' ? 1 : -1;
+  return list.slice().sort((a, b) => {
+    let va, vb;
+    switch (sortBy) {
+      case 'region':   va = a.region || ''; vb = b.region || ''; break;
+      case 'category': va = a.category || ''; vb = b.category || ''; break;
+      case 'name':     va = a.name || ''; vb = b.name || ''; break;
+      default:         va = a.createdAt || 0; vb = b.createdAt || 0;
+    }
+    if (va < vb) return -1 * sign;
+    if (va > vb) return  1 * sign;
+    return 0;
+  });
+}
+
+function renderMyPlaces() {
+  if (!myPlaceListEl) return;
+  const sortBy = myListSortByEl?.value || 'createdAt';
+  const order  = myListOrderEl?.value  || 'desc';
+  const sorted = sortMyPlaces(myPlaces, sortBy, order);
+
+  myPlaceListEl.innerHTML = '';
+  if (sorted.length === 0) {
+    myPlaceListEl.innerHTML = '<li class="list-group-item">아직 저장된 장소가 없습니다.</li>';
+    return;
+  }
+
+  sorted.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item d-flex justify-content-between align-items-start';
+    li.innerHTML = `
+      <div>
+        <div class="fw-bold">${p.name || '(이름 없음)'}</div>
+        ${p.address ? `<div class="text-muted small">${p.address}</div>` : ''}
+        <div class="small mt-1">
+          <span class="badge bg-light text-dark me-2">지역: ${p.region || '-'}</span>
+          <span class="badge bg-secondary">카테고리: ${p.category || '-'}</span>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        ${p.lat && p.lng ? `<a class="btn btn-sm btn-outline-primary" target="_blank"
+            href="https://www.google.com/maps?q=${p.lat},${p.lng}">지도</a>` : ''}
+        <button class="btn btn-sm btn-outline-danger" data-remove="${i}">삭제</button>
+      </div>
+    `;
+    myPlaceListEl.appendChild(li);
+  });
+
+  // 삭제 핸들러
+  myPlaceListEl.querySelectorAll('button[data-remove]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = Number(e.currentTarget.getAttribute('data-remove'));
+      removePlaceAt(idx);
+    });
+  });
+}
+
+// 정렬 컨트롤 이벤트
+if (myListSortByEl) myListSortByEl.addEventListener('change', renderMyPlaces);
+if (myListOrderEl)  myListOrderEl.addEventListener('change', renderMyPlaces);
+
+// 초기 렌더
+renderMyPlaces();
+
+/***** =========================
+ *   결과 리스트에 "저장" 버튼
+ * ========================= *****/
+
+// 장소명만 있는 경우(문자열 배열) → 네이버 검색으로 좌표/주소 resolve 후 저장
+async function resolvePlaceViaNaver(query) {
+  try {
+    const res = await fetch('/search-place?query=' + encodeURIComponent(query));
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return null;
+
+    const item = data.items[0];
+    const lng = parseFloat(item.mapx) / 1e7;
+    const lat = parseFloat(item.mapy) / 1e7;
+
+    const name = (item.title || '').replace(/<[^>]*>/g, '');
+    const address = item.roadAddress || item.address || '';
+    return {
+      name,
+      address,
+      lat,
+      lng,
+      region: inferRegion(address),
+      category: inferCategory(name),
+    };
+  } catch (e) {
+    console.error('resolvePlaceViaNaver error:', e);
+    return null;
+  }
+}
+
+// 원래 showResults를 확장: 저장 버튼 추가
+const _origShowResults = showResults;
+showResults = function(locations) {
+  _origShowResults(locations);
+
+  const listEl = document.getElementById('locationList');
+  if (!listEl) return;
+
+  // 문자열 배열(장소명만)
+  if (Array.isArray(locations) && locations[0] && typeof locations[0] === 'string') {
+    // 각 li에 저장 버튼 주입
+    Array.from(listEl.children).forEach((li, idx) => {
+      const placeName = locations[idx];
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-sm btn-success ms-2';
+      btn.textContent = '저장';
+      btn.addEventListener('click', async () => {
+        const resolved = await resolvePlaceViaNaver(placeName);
+        const now = Date.now();
+        const payload = resolved ? {
+          ...resolved,
+          createdAt: now
+        } : {
+          name: placeName,
+          address: '',
+          lat: null, lng: null,
+          region: '',
+          category: inferCategory(placeName),
+          createdAt: now
+        };
+        upsertPlace(payload);
+        alert('리스트에 저장했습니다.');
+      });
+      li.querySelector('div').appendChild(btn);
+    });
+    return;
+  }
+
+  // 객체 배열({ name, type, coordinates:{lat,lng,address}... })
+  Array.from(listEl.children).forEach((li, idx) => {
+    const loc = locations[idx];
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-success';
+    btn.textContent = '저장';
+
+    btn.addEventListener('click', () => {
+      const lat = loc?.coordinates?.lat ?? null;
+      const lng = loc?.coordinates?.lng ?? null;
+      const address = loc?.coordinates?.address ?? '';
+      const payload = {
+        name: loc.name || '(이름 없음)',
+        address,
+        lat, lng,
+        region: inferRegion(address),
+        category: inferCategory(loc.name, loc.type),
+        createdAt: Date.now()
+      };
+      upsertPlace(payload);
+      alert('리스트에 저장했습니다.');
+    });
+
+    // 오른쪽 버튼 영역이 없으면 만들어 붙이기
+    const rightSide = li.querySelector('a.btn') ? li.querySelector('a.btn').parentElement : null;
+    if (rightSide) {
+      rightSide.prepend(btn);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'd-flex gap-2';
+      wrap.appendChild(btn);
+      li.appendChild(wrap);
+    }
+  });
+};
+
+/***** 드래그&드롭 업로드 *****/
+let droppedImageFile = null;
+
+// 기존 미리보기 함수가 없다면 앱에 추가되어 있어야 합니다.
+function previewFromFile(file){
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = document.getElementById('imagePreview');
+    if (img) { img.src = e.target.result; img.style.display = 'block'; }
+  };
+  reader.readAsDataURL(file);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('dropZone');
+  if (!dropZone) return;
+
+  const onDragEnterOver = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); };
+  const onDragLeaveDrop = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); };
+
+  ['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, onDragEnterOver));
+  ['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, onDragLeaveDrop));
+
+  dropZone.addEventListener('drop', (e) => {
+    const file = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+    if (!file) { alert('이미지 파일만 가능합니다.'); return; }
+    droppedImageFile = file;
+
+    // 이미지 모드로 전환
+    const imageInputRadio = document.getElementById('imageInput');
+    const imageUploadSection = document.getElementById('imageUploadSection');
+    const urlInputSection = document.getElementById('urlInputSection');
+    if (imageInputRadio) imageInputRadio.checked = true;
+    if (imageUploadSection) imageUploadSection.style.display = 'block';
+    if (urlInputSection) urlInputSection.style.display = 'none';
+
+    // 미리보기
+    previewFromFile(file);
+  });
+
+  // 파일 인풋을 새로 고르면 드롭/붙여넣기 파일 우선순위 해제
+  const fileInput = document.getElementById('imageFile');
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      droppedImageFile = null;
+    });
+  }
+});

@@ -98,7 +98,7 @@ async function markPlacesFromExtracted(placeNames) {
   
   if (!placeNames || placeNames.length === 0) {
     console.log('장소명이 없습니다.');
-    return;
+    return Promise.resolve();
   }
 
   // 여러 검색 방법 시도
@@ -145,11 +145,12 @@ async function markPlacesFromExtracted(placeNames) {
     
     if (result) {
       console.log(`✅ 검색 성공! "${placeName}"으로 장소를 찾았습니다.`);
-      return; // 성공하면 더 이상 시도하지 않음
+      return Promise.resolve(); // 성공하면 더 이상 시도하지 않음
     }
   }
   
   console.log('❌ 모든 검색어로 시도했지만 장소를 찾을 수 없습니다.');
+  return Promise.resolve();
 }
 
 // 개별 장소 검색 함수

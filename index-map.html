@@ -212,7 +212,7 @@
 
         /* 날씨 섹션 스타일 */
         .weather-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #8a80ca 0%, #764ba2 100%);
             border-radius: 16px;
             padding: 1.5rem;
             margin-bottom: 2rem;
@@ -266,11 +266,14 @@
             <div class="text-center" style="margin-bottom: 0.1rem; margin-top: 0.1rem;">
                 <svg width="570" height="170" viewBox="0 0 570 170" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <linearGradient id="pinGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#d0bcff;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#b08fe8;stop-opacity:1" />
-                        </linearGradient>
+                         <linearGradient id="pinGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <!-- 시작 색 -->
+                              <stop offset="0%" style="stop-color:#b08fe8; stop-opacity:1" />
+                              <!-- 이후 동일 색 유지 -->
+                              <stop offset="100%" style="stop-color:#b08fe8; stop-opacity:1" />
+                         </linearGradient>
                     </defs>
+
 
                     <!-- 텍스트 및 밑줄 -->
                     <g>
@@ -304,12 +307,12 @@
                 <div class="weather-container">
                     <div class="weather-info">
                         <span class="weather-location">서울</span>
-                        <span class="weather-temp">23°C</span>
-                        <span class="weather-desc">맑음</span>
+                        <span class="weather-temp">-°C</span>
+                        <span class="weather-desc">-</span>
                     </div>
                     <div class="weather-details">
-                        <span class="humidity">습도: 45%</span>
-                        <span class="wind">풍속: 2m/s</span>
+                        <span class="humidity">습도: -%</span>
+                        <span class="wind">풍속: -m/s</span>
                     </div>
                 </div>
             </div>
@@ -432,44 +435,43 @@
 
     // 날씨 정보 가져오기 함수
     async function getWeatherData() {
-        const city = 'Seoul'; // 기본값: 서울
-        
+        const city = 'Seoul'; // 또는 geolocation 사용 시 제거
         try {
             const response = await fetch(`/weather?city=${city}`);
             const data = await response.json();
-            
-            if (data.cod === 200) {
+
+        // ✅ WeatherAPI 스키마 기준(필수 필드 존재 여부 확인)
+            if (data && data.location && data.current) {
                 updateWeatherDisplay(data);
             } else {
-                console.error('날씨 정보 가져오기 실패:', data.message);
                 showDefaultWeather();
             }
-        } catch (error) {
-            console.error('날씨 API 호출 실패:', error);
-            // 에러 시 기본값 표시
+        } catch (e) {
             showDefaultWeather();
         }
     }
 
+
     // 날씨 표시 업데이트
-    function updateWeatherDisplay(weatherData) {
-        const location = weatherData.name;
-        const temp = Math.round(weatherData.main.temp);
-        const description = weatherData.weather[0].description;
-        const humidity = weatherData.main.humidity;
-        const windSpeed = weatherData.wind.speed;
-        
-        document.querySelector('.weather-location').textContent = location;
-        document.querySelector('.weather-temp').textContent = `${temp}°C`;
-        document.querySelector('.weather-desc').textContent = description;
-        document.querySelector('.humidity').textContent = `습도: ${humidity}%`;
-        document.querySelector('.wind').textContent = `풍속: ${windSpeed}m/s`;
-    }
+	function updateWeatherDisplay(weatherData) {
+		const location = weatherData.location.name;
+		const temp = Math.round(weatherData.current.temp_c);
+		const description = weatherData.current.condition.text;
+		const humidity = weatherData.current.humidity;
+		const windSpeed = Math.round((weatherData.current.wind_kph || 0) / 3.6); // km/h → m/s
+
+		document.querySelector('.weather-location').textContent = location;
+		document.querySelector('.weather-temp').textContent = `${temp}°C`;
+		document.querySelector('.weather-desc').textContent = description;
+		document.querySelector('.humidity').textContent = `습도: ${humidity}%`;
+		document.querySelector('.wind').textContent = `풍속: ${windSpeed}m/s`;
+	}
+
 
     // 기본 날씨 정보 표시 (API 키가 없을 때)
     function showDefaultWeather() {
         document.querySelector('.weather-location').textContent = '서울';
-        document.querySelector('.weather-temp').textContent = '23°C';
+        document.querySelector('.weather-temp').textContent = '30°C';
         document.querySelector('.weather-desc').textContent = '맑음';
         document.querySelector('.humidity').textContent = '습도: 45%';
         document.querySelector('.wind').textContent = '풍속: 2m/s';

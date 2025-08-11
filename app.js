@@ -748,8 +748,19 @@ function showResults(locations) {
     if (typeof locations[0] === 'string') {
         locations.forEach(place => {
             const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between align-items-center';
-            li.innerHTML = `<div><strong>${place}</strong></div>`;
+            li.className = 'list-group-item d-flex justify-content-between align-items-start';
+            li.innerHTML = `
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="pin-emoji me-2">📍</span>
+                        <div class="location-name">${place}</div>
+                    </div>
+                    <div class="location-address">도로명 주소 정보를 가져오는 중...</div>
+                </div>
+                <div class="ms-auto">
+                    <button class="btn btn-sm btn-success">저장</button>
+                </div>
+            `;
             locationList.appendChild(li);
         });
         return;
@@ -758,16 +769,26 @@ function showResults(locations) {
     // 객체 배열(기존 방식)일 경우
     locations.forEach(location => {
         const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+        li.className = 'list-group-item d-flex justify-content-between align-items-start';
         li.innerHTML = `
-            <div>
-                <strong>${location.name}</strong>
-                ${location.type ? `<span class="badge bg-secondary ms-2">${location.type}</span>` : ''}
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="pin-emoji me-2">📍</span>
+                    <div class="location-name">${location.name}</div>
+                    ${location.type ? `<span class="badge bg-secondary ms-2">${location.type}</span>` : ''}
+                </div>
+                <div class="location-address">
+                    ${location.coordinates && location.coordinates.address ? 
+                        location.coordinates.address : '도로명 주소 정보를 가져오는 중...'}
+                </div>
             </div>
-            ${location.coordinates ? 
-                `<a href="https://www.google.com/maps?q=${location.coordinates.lat},${location.coordinates.lng}" 
-                   target="_blank" class="btn btn-sm btn-outline-primary">지도 보기</a>` 
-                : ''}
+            <div class="ms-auto d-flex gap-2">
+                <button class="btn btn-sm btn-success">저장</button>
+                ${location.coordinates ? 
+                    `<a href="https://www.google.com/maps?query=${encodeURIComponent(location.name)}" 
+                       target="_blank" class="btn btn-sm btn-outline-primary">지도 보기</a>` 
+                    : ''}
+            </div>
         `;
         locationList.appendChild(li);
     });
@@ -967,7 +988,7 @@ async function resolvePlaceViaNaver(query) {
   }
 }
 
-// 원래 showResults를 확장: 저장 버튼 추가
+// 원래 showResults를 확장: 저장 버튼 이벤트 리스너 추가
 const _origShowResults = showResults;
 showResults = function(locations) {
   _origShowResults(locations);
@@ -977,30 +998,38 @@ showResults = function(locations) {
 
   // 문자열 배열(장소명만)
   if (Array.isArray(locations) && locations[0] && typeof locations[0] === 'string') {
-    // 각 li에 저장 버튼 주입
+    // 각 li에 저장 버튼 이벤트 리스너 추가
     Array.from(listEl.children).forEach((li, idx) => {
       const placeName = locations[idx];
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-sm btn-success ms-2';
-      btn.textContent = '저장';
-      btn.addEventListener('click', async () => {
-        const resolved = await resolvePlaceViaNaver(placeName);
-        const now = Date.now();
-        const payload = resolved ? {
-          ...resolved,
-          createdAt: now
-        } : {
-          name: placeName,
-          address: '',
-          lat: null, lng: null,
-          region: '',
-          category: inferCategory(placeName),
-          createdAt: now
-        };
-        upsertPlace(payload);
-        alert('리스트에 저장했습니다.');
-      });
-      li.querySelector('div').appendChild(btn);
+      const btn = li.querySelector('button.btn-success');
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          const resolved = await resolvePlaceViaNaver(placeName);
+          const now = Date.now();
+          const payload = resolved ? {
+            ...resolved,
+            createdAt: now
+          } : {
+            name: placeName,
+            address: '',
+            lat: null, lng: null,
+            region: '',
+            category: inferCategory(placeName),
+            createdAt: now
+          };
+          upsertPlace(payload);
+          
+          // 주소 정보 업데이트
+          if (resolved && resolved.address) {
+            const addressElement = li.querySelector('.location-address');
+            if (addressElement) {
+              addressElement.textContent = resolved.address;
+            }
+          }
+          
+          alert('리스트에 저장했습니다.');
+        });
+      }
     });
     return;
   }
@@ -1008,35 +1037,24 @@ showResults = function(locations) {
   // 객체 배열({ name, type, coordinates:{lat,lng,address}... })
   Array.from(listEl.children).forEach((li, idx) => {
     const loc = locations[idx];
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-sm btn-success';
-    btn.textContent = '저장';
-
-    btn.addEventListener('click', () => {
-      const lat = loc?.coordinates?.lat ?? null;
-      const lng = loc?.coordinates?.lng ?? null;
-      const address = loc?.coordinates?.address ?? '';
-      const payload = {
-        name: loc.name || '(이름 없음)',
-        address,
-        lat, lng,
-        region: inferRegion(address),
-        category: inferCategory(loc.name, loc.type),
-        createdAt: Date.now()
-      };
-      upsertPlace(payload);
-      alert('리스트에 저장했습니다.');
-    });
-
-    // 오른쪽 버튼 영역이 없으면 만들어 붙이기
-    const rightSide = li.querySelector('a.btn') ? li.querySelector('a.btn').parentElement : null;
-    if (rightSide) {
-      rightSide.prepend(btn);
-    } else {
-      const wrap = document.createElement('div');
-      wrap.className = 'd-flex gap-2';
-      wrap.appendChild(btn);
-      li.appendChild(wrap);
+    const btn = li.querySelector('button.btn-success');
+    
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const lat = loc?.coordinates?.lat ?? null;
+        const lng = loc?.coordinates?.lng ?? null;
+        const address = loc?.coordinates?.address ?? '';
+        const payload = {
+          name: loc.name || '(이름 없음)',
+          address,
+          lat, lng,
+          region: inferRegion(address),
+          category: inferCategory(loc.name, loc.type),
+          createdAt: Date.now()
+        };
+        upsertPlace(payload);
+        alert('리스트에 저장했습니다.');
+      });
     }
   });
 };

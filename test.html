@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OCR Test</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>OCR 테스트</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <button onclick="processImage()">텍스트 추출</button>
+    <div id="result"></div>
+
+    <script>
+        async function processImage() {
+            const fileInput = document.getElementById('imageInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files.length) {
+                alert('이미지를 선택해주세요.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                resultDiv.textContent = '처리 중...';
+                const response = await fetch('http://localhost:3000/ocr', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('서버 요청 실패');
+                }
+
+                const data = await response.json();
+                resultDiv.textContent = '추출된 텍스트: ' + data.text;
+            } catch (error) {
+                resultDiv.textContent = '오류 발생: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html> 

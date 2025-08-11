@@ -1115,8 +1115,12 @@ function renderMyPlaces() {
         </div>
       </div>
       <div class="d-flex gap-2">
-        ${p.coordinates && p.coordinates.lat && p.coordinates.lng ? `<a class="btn btn-sm btn-outline-primary" target="_blank"
-            href="https://www.google.com/maps?q=${p.coordinates.lat},${p.coordinates.lng}">지도</a>` : ''}
+        ${p.coordinates && p.coordinates.lat && p.coordinates.lng && 
+          !isNaN(p.coordinates.lat) && !isNaN(p.coordinates.lng) && 
+          p.coordinates.lat !== 0 && p.coordinates.lng !== 0 ? 
+          `<button class="btn btn-sm btn-outline-primary map-btn" onclick="showOnMap('${p.name}', ${p.coordinates.lat}, ${p.coordinates.lng}, '${p.address || ''}')">
+              <i class="bi bi-map"></i> 지도
+          </button>` : ''}
         <button class="btn btn-sm btn-outline-danger" data-remove="${i}">삭제</button>
       </div>
     `;
@@ -1165,76 +1169,7 @@ async function resolvePlaceViaNaver(query) {
   }
 }
 
-// 원래 showResults를 확장: 저장 버튼 이벤트 리스너 추가
-const _origShowResults = showResults;
-showResults = function(locations) {
-  _origShowResults(locations);
 
-  const listEl = document.getElementById('locationList');
-  if (!listEl) return;
-
-  // 문자열 배열(장소명만)
-  if (Array.isArray(locations) && locations[0] && typeof locations[0] === 'string') {
-    // 각 li에 저장 버튼 이벤트 리스너 추가
-    Array.from(listEl.children).forEach((li, idx) => {
-      const placeName = locations[idx];
-      const btn = li.querySelector('button.btn-success');
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          const resolved = await resolvePlaceViaNaver(placeName);
-          const now = Date.now();
-          const payload = resolved ? {
-            ...resolved,
-            createdAt: now
-          } : {
-            name: placeName,
-            address: '',
-            lat: null, lng: null,
-            region: '',
-            category: inferCategory(placeName),
-            createdAt: now
-          };
-          upsertPlace(payload);
-          
-          // 주소 정보 업데이트
-          if (resolved && resolved.address) {
-            const addressElement = li.querySelector('.location-address');
-            if (addressElement) {
-              addressElement.textContent = resolved.address;
-            }
-          }
-          
-          alert('리스트에 저장했습니다.');
-        });
-      }
-    });
-    return;
-  }
-
-  // 객체 배열({ name, type, coordinates:{lat,lng,address}... })
-  Array.from(listEl.children).forEach((li, idx) => {
-    const loc = locations[idx];
-    const btn = li.querySelector('button.btn-success');
-    
-    if (btn) {
-      btn.addEventListener('click', () => {
-        const lat = loc?.coordinates?.lat ?? null;
-        const lng = loc?.coordinates?.lng ?? null;
-        const address = loc?.coordinates?.address ?? '';
-        const payload = {
-          name: loc.name || '(이름 없음)',
-          address,
-          lat, lng,
-          region: inferRegion(address),
-          category: inferCategory(loc.name, loc.type),
-          createdAt: Date.now()
-        };
-        upsertPlace(payload);
-        alert('리스트에 저장했습니다.');
-      });
-    }
-  });
-};
 
 // 장소를 지도에 표시하는 함수 (기존 함수와 통합)
 function markOnMap(placeName, lat, lng, address = '') {

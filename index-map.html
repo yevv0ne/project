@@ -85,24 +85,6 @@
             font-weight: 500;
             color: #333;
             box-shadow: 0 1px 4px rgba(149,117,205,0.04);
-            padding: 1rem;
-        }
-        
-        .list-group-item .pin-emoji {
-            font-size: 1.2em;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
-        }
-        
-        .list-group-item .location-name {
-            font-weight: 600;
-            color: #6f42c1;
-            margin-bottom: 0.25rem;
-        }
-        
-        .list-group-item .location-address {
-            color: #6c757d;
-            font-size: 0.9em;
-            line-height: 1.4;
         }
         .badge {
             background-color: #b39ddb;
@@ -351,7 +333,7 @@
                 <div class="mb-3">
                     <label for="imageFile" class="form-label">이미지 파일 선택</label>
                     <div class="d-flex gap-2 align-items-center">
-                        <input type="file" class="form-control" id="imageFile" accept="image/*">
+                        <input type="file" class="form-control" id="imageFile" accept="image/*">            
                     </div>
                 </div>
                 
@@ -379,20 +361,6 @@
                     <label for="urlInputField" class="form-label">웹 페이지 URL</label>
                     <input type="url" class="form-control" id="urlInputField" placeholder="https://example.com">
                 </div>
-                
-                <!-- 자동 처리 설정 -->
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="autoProcessToggle" checked>
-                        <label class="form-check-label" for="autoProcessToggle">
-                            <i class="bi bi-lightning-charge text-warning me-2"></i>
-                            링크 자동 처리 (클립보드 감지 시)
-                        </label>
-                    </div>
-                    <small class="text-muted">
-                        Instagram 링크는 자동으로 처리됩니다
-                    </small>
-                </div>
             </div>
 
             <div class="loading">
@@ -409,22 +377,29 @@
 
             </div>
 
-            <!-- ✅ 여기서부터 추가: 정렬 컨트롤 + 나의 장소 -->
+            <!-- ✅ 여기서부터 추가: 정렬 컨트롤 + 나의 리스트 -->
             <!-- 정렬 컨트롤 -->
             <section class="container my-3">
               <div class="d-flex gap-2 align-items-center">
                 <label class="form-label m-0">정렬 기준</label>
-                <select id="myListSortBy" class="form-select" style="max-width:200px">
-                  <option value="createdAt-desc">최신순</option>
-                  <option value="createdAt-asc">과거순</option>
-                  <option value="name-asc">가나다순</option>
+                <select id="myListSortBy" class="form-select" style="max-width:160px">
+                  <option value="createdAt">저장순</option>
+                  <option value="region">지역(구/군)</option>
+                  <option value="category">카테고리</option>
+                  <option value="name">이름</option>
+                </select>
+
+                <label class="form-label m-0 ms-3">오름/내림</label>
+                <select id="myListOrder" class="form-select" style="max-width:140px">
+                  <option value="desc">내림차순</option>
+                  <option value="asc">오름차순</option>
                 </select>
               </div>
             </section>
 
-            <!-- 나의 장소 -->
+            <!-- 나의 리스트 -->
             <section class="container mb-4">
-              <h5 class="mt-3">나의 장소</h5>
+              <h5 class="mt-3">나의 리스트</h5>
               <ul id="myPlaceList" class="list-group"></ul>
             </section>
             <!-- ✅ 추가 끝 -->

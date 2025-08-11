@@ -529,18 +529,22 @@ function initMap() {
         };
 
         // 지도 생성
-        map = new naver.maps.Map('map', mapOptions);
+        window.map = new naver.maps.Map('map', mapOptions);
+        
+        // 마커 배열 초기화
+        window.markers = [];
+        window.infoWindows = [];
 
         // 지도 로드 완료 이벤트
-        naver.maps.Event.once(map, 'init', function() {
+        naver.maps.Event.once(window.map, 'init', function() {
             console.log('지도 초기화 완료');
-            map.refresh();
+            window.map.refresh();
         });
 
         // 지도 크기 조정 이벤트
         window.addEventListener('resize', function() {
-            if (map) {
-                map.refresh();
+            if (window.map) {
+                window.map.refresh();
             }
         });
 
@@ -558,7 +562,7 @@ function createMarker(location) {
     // 마커 생성
     const marker = new naver.maps.Marker({
         position: position,
-        map: map,
+        map: window.map,
         title: location.name
     });
 
@@ -584,17 +588,17 @@ function createMarker(location) {
         anchorSkew: true,
         anchorColor: "#fff",
         pixelOffset: new naver.maps.Point(10, -10)
-    });
+        });
 
     // 마커 클릭 이벤트
     naver.maps.Event.addListener(marker, 'click', () => {
         // 다른 정보창 닫기
-        infoWindows.forEach(iw => iw.close());
+        window.infoWindows.forEach(iw => iw.close());
         // 현재 정보창 열기
-        infoWindow.open(map, marker);
+        infoWindow.open(window.map, marker);
     });
 
-    infoWindows.push(infoWindow);
+    window.infoWindows.push(infoWindow);
     return marker;
 }
 
@@ -748,20 +752,35 @@ function showResults(locations) {
     if (typeof locations[0] === 'string') {
         locations.forEach(place => {
             const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between align-items-start';
+            li.className = 'list-group-item location-card';
             li.innerHTML = `
-                <div class="flex-grow-1">
-                    <div class="d-flex align-items-center mb-1">
-                        <span class="pin-emoji me-2">📍</span>
-                        <div class="location-name">${place}</div>
+                <div class="location-card-content">
+                    <div class="location-header">
+                        <div class="location-icon">
+                            <i class="bi bi-geo-alt-fill"></i>
+                        </div>
+                        <div class="location-info">
+                            <h5 class="location-name">${place}</h5>
+                            <p class="location-address">도로명 주소 정보를 가져오는 중...</p>
+                        </div>
                     </div>
-                    <div class="location-address">도로명 주소 정보를 가져오는 중...</div>
-                </div>
-                <div class="ms-auto">
-                    <button class="btn btn-sm btn-success">저장</button>
+                    <div class="location-actions">
+                        <button class="btn btn-sm btn-success save-btn">
+                            <i class="bi bi-bookmark-plus"></i> 저장
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary map-btn" onclick="searchAndShowOnMap('${place}')">
+                            <i class="bi bi-map"></i> 지도에서 보기
+                        </button>
+                    </div>
                 </div>
             `;
             locationList.appendChild(li);
+            
+            // 저장 버튼 이벤트 추가
+            const saveBtn = li.querySelector('.save-btn');
+            saveBtn.addEventListener('click', () => {
+                savePlace(place);
+            });
         });
         return;
     }
@@ -769,28 +788,171 @@ function showResults(locations) {
     // 객체 배열(기존 방식)일 경우
     locations.forEach(location => {
         const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-start';
+        li.className = 'list-group-item location-card';
         li.innerHTML = `
-            <div class="flex-grow-1">
-                <div class="d-flex align-items-center mb-1">
-                    <span class="pin-emoji me-2">📍</span>
-                    <div class="location-name">${location.name}</div>
-                    ${location.type ? `<span class="badge bg-secondary ms-2">${location.type}</span>` : ''}
+            <div class="location-card-content">
+                <div class="location-header">
+                    <div class="location-icon">
+                        <i class="bi bi-geo-alt-fill"></i>
+                    </div>
+                    <div class="location-info">
+                        <h5 class="location-name">${location.name}</h5>
+                        <p class="location-address">
+                            ${location.coordinates && location.coordinates.address ? 
+                                location.coordinates.address : '도로명 주소 정보를 가져오는 중...'}
+                        </p>
+                        ${location.type ? `<span class="location-type">${location.type}</span>` : ''}
+                    </div>
                 </div>
-                <div class="location-address">
-                    ${location.coordinates && location.coordinates.address ? 
-                        location.coordinates.address : '도로명 주소 정보를 가져오는 중...'}
+                <div class="location-actions">
+                    <button class="btn btn-sm btn-success save-btn">
+                        <i class="bi bi-bookmark-plus"></i> 저장
+                    </button>
+                    ${location.coordinates ? 
+                        `<button class="btn btn-sm btn-outline-primary map-btn" onclick="showOnMap('${location.name}', ${location.coordinates.lat}, ${location.coordinates.lng})">
+                            <i class="bi bi-map"></i> 지도에서 보기
+                        </button>` 
+                        : `<button class="btn btn-sm btn-outline-primary map-btn" onclick="searchAndShowOnMap('${location.name}')">
+                            <i class="bi bi-map"></i> 지도에서 보기
+                        </button>`
+                    }
                 </div>
-            </div>
-            <div class="ms-auto d-flex gap-2">
-                <button class="btn btn-sm btn-success">저장</button>
-                ${location.coordinates ? 
-                    `<a href="https://www.google.com/maps?query=${encodeURIComponent(location.name)}" 
-                       target="_blank" class="btn btn-sm btn-outline-primary">지도 보기</a>` 
-                    : ''}
             </div>
         `;
         locationList.appendChild(li);
+        
+        // 저장 버튼 이벤트 추가
+        const saveBtn = li.querySelector('.save-btn');
+        saveBtn.addEventListener('click', () => {
+            savePlace(location.name, location.type, location.coordinates);
+        });
+    });
+}
+
+// 장소 저장 함수
+function savePlace(name, type = '', coordinates = null) {
+    const place = {
+        name: name,
+        type: type,
+        coordinates: coordinates,
+        createdAt: new Date().toISOString(),
+        region: coordinates ? inferRegion(coordinates.address) : '',
+        category: inferCategory(name, type)
+    };
+    
+    upsertPlace(place);
+    renderMyPlaces();
+    
+    // 저장 성공 메시지
+    const saveBtn = event.target.closest('.save-btn');
+    if (saveBtn) {
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="bi bi-check"></i> 저장됨';
+        saveBtn.classList.remove('btn-success');
+        saveBtn.classList.add('btn-secondary');
+        saveBtn.disabled = true;
+        
+        setTimeout(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.classList.remove('btn-secondary');
+            saveBtn.classList.add('btn-success');
+            saveBtn.disabled = false;
+        }, 2000);
+    }
+}
+
+// 지도에서 검색하여 표시하는 함수
+async function searchAndShowOnMap(placeName) {
+    try {
+        const response = await fetch(`/search-place?query=${encodeURIComponent(placeName)}`);
+        const data = await response.json();
+        
+        if (data.items && data.items.length > 0) {
+            const item = data.items[0];
+            const lat = parseFloat(item.mapy) / 1e7;
+            const lng = parseFloat(item.mapx) / 1e7;
+            
+            // 지도에 마커 표시
+            showOnMap(placeName, lat, lng, item.address);
+            
+            // 해당 장소 카드의 주소 정보 업데이트
+            updatePlaceAddress(placeName, item.address);
+        } else {
+            alert('해당 장소를 찾을 수 없습니다.');
+        }
+    } catch (error) {
+        console.error('장소 검색 실패:', error);
+        alert('장소 검색에 실패했습니다.');
+    }
+}
+
+// 지도에 표시하는 함수
+function showOnMap(placeName, lat, lng, address = '') {
+    if (typeof naver !== 'undefined' && naver.maps && window.map) {
+        // 기존 마커들 제거
+        if (window.markers) {
+            window.markers.forEach(marker => marker.setMap(null));
+        }
+        window.markers = [];
+        
+        // 새로운 마커 생성
+        const marker = new naver.maps.Marker({
+            position: new naver.maps.LatLng(lat, lng),
+            map: window.map,
+            icon: {
+                content: '<div class="custom-marker"><i class="bi bi-geo-alt-fill"></i></div>',
+                size: new naver.maps.Size(40, 40),
+                anchor: new naver.maps.Point(20, 20)
+            }
+        });
+        
+        window.markers.push(marker);
+        
+        // 지도 중심 이동
+        window.map.setCenter(new naver.maps.LatLng(lat, lng));
+        window.map.setZoom(15);
+        
+        // 정보창 표시
+        const infoWindow = new naver.maps.InfoWindow({
+            content: `
+                <div class="info-window">
+                    <h3>${placeName}</h3>
+                    ${address ? `<p class="address">${address}</p>` : ''}
+                </div>
+            `,
+            maxWidth: 200,
+            backgroundColor: "#fff",
+            borderColor: "#b39ddb",
+            borderWidth: 2,
+            anchorSize: new naver.maps.Size(20, 20),
+            anchorColor: "#fff",
+            pixelOffset: new naver.maps.Point(0, -20)
+        });
+        
+        infoWindow.open(window.map, marker);
+        
+        // 마커 클릭 시 정보창 토글
+        naver.maps.Event.addListener(marker, 'click', function() {
+            if (infoWindow.getMap()) {
+                infoWindow.close();
+            } else {
+                infoWindow.open(window.map, marker);
+            }
+        });
+    }
+}
+
+// 장소 카드의 주소 정보 업데이트
+function updatePlaceAddress(placeName, address) {
+    const locationCards = document.querySelectorAll('.location-card');
+    locationCards.forEach(card => {
+        const nameElement = card.querySelector('.location-name');
+        if (nameElement && nameElement.textContent === placeName) {
+            const addressElement = card.querySelector('.location-address');
+            if (addressElement) {
+                addressElement.textContent = address;
+            }
+        }
     });
 }
 
@@ -1058,3 +1220,59 @@ showResults = function(locations) {
     }
   });
 };
+
+// 장소를 지도에 표시하는 함수 (기존 함수와 통합)
+function markOnMap(placeName, lat, lng, address = '') {
+    if (typeof naver !== 'undefined' && naver.maps && window.map) {
+        // 기존 마커들 제거
+        if (window.markers) {
+            window.markers.forEach(marker => marker.setMap(null));
+        }
+        window.markers = [];
+        
+        // 새로운 마커 생성
+        const marker = new naver.maps.Marker({
+            position: new naver.maps.LatLng(lat, lng),
+            map: window.map,
+            icon: {
+                content: '<div class="custom-marker"><i class="bi bi-geo-alt-fill"></i></div>',
+                size: new naver.maps.Size(40, 40),
+                anchor: new naver.maps.Point(20, 20)
+            }
+        });
+        
+        window.markers.push(marker);
+        
+        // 지도 중심 이동
+        window.map.setCenter(new naver.maps.LatLng(lat, lng));
+        window.map.setZoom(15);
+        
+        // 정보창 표시
+        const infoWindow = new naver.maps.InfoWindow({
+            content: `
+                <div class="info-window">
+                    <h3>${placeName}</h3>
+                    ${address ? `<p class="address">${address}</p>` : ''}
+                </div>
+            `,
+            maxWidth: 200,
+            backgroundColor: "#fff",
+            borderColor: "#b39ddb",
+            borderWidth: 2,
+            anchorSize: new naver.maps.Size(20, 20),
+            anchorColor: "#fff",
+            pixelOffset: new naver.maps.Point(0, -20)
+        });
+        
+        infoWindow.open(window.map, marker);
+        
+        // 마커 클릭 시 정보창 토글
+        naver.maps.Event.addListener(marker, 'click', function() {
+            if (infoWindow.getMap()) {
+                infoWindow.close();
+            } else {
+                infoWindow.open(window.map, marker);
+            }
+        });
+    }
+}

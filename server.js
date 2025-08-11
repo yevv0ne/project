@@ -1,18 +1,29 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
+console.log("### BOOT server.js ###");
+
+
+console.log("### RUNNING SERVER (WeatherAPI build) ###");
+console.log("### BOOT: server.js entered ###");
+process.on("exit", (code) => console.log("### EXIT:", code));
+setTimeout(() => console.log("### still alive after 2s ###"), 2000);
+
+
 const cheerio = require('cheerio');
 const multer = require('multer');
 const Tesseract = require('tesseract.js');
-const path = require('path');
 const fs = require('fs');
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const path = require("path");
+
 
 const app = express();
+
 
 // 미들웨어 설정
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // 현재 디렉토리의 모든 파일을 정적 파일로 제공
+app.use(express.static(path.join(__dirname))); // 현재 디렉토리의 모든 파일을 정적 파일로 제공
 
 // 기본 라우트 추가
 app.get('/', (req, res) => {
@@ -21,6 +32,10 @@ app.get('/', (req, res) => {
 
 app.get('/index-map.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'index-map.html'));
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, ts: Date.now() });
 });
 
 // Multer 설정
@@ -227,8 +242,8 @@ app.post('/extract-image', upload.single('image'), async (req, res) => {
 // 네이버 지역(장소) 검색 프록시 엔드포인트
 app.get('/search-place', async (req, res) => {
     const query = req.query.query;
-    const clientId = 'amyjiho@naver.com';         // 여기에 본인 Client ID 입력
-    const clientSecret = 'NaverC.14jj'; // 여기에 본인 Client Secret 입력
+    const clientId = 'dv09yJvf1T8W4_pyPYjs';         // 여기에 본인 Client ID 입력
+    const clientSecret = 'k4ncKS6rkV'; // 여기에 본인 Client Secret 입력
 
     if (!query) {
         return res.status(400).json({ error: '검색어가 필요합니다.' });
@@ -263,46 +278,57 @@ app.get('/search-place', async (req, res) => {
 });
 
 // 날씨 정보 프록시 엔드포인트
-app.get('/weather', async (req, res) => {
-    const city = req.query.city || 'Seoul';
-    const API_KEY = 'e2121f6f8e954ebfb1b115328250808'; // OpenWeatherMap API 키
-    
-    try {
-        console.log('날씨 API 요청:', city);
-        
-        const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather`, {
-            params: {
-                q: city,
-                appid: API_KEY,
-                units: 'metric',
-                lang: 'kr'
-            }
-        });
-        
-        console.log('날씨 API 응답:', response.status);
-        res.json(response.data);
-    } catch (error) {
-        console.error('날씨 API 에러:', error.response?.status, error.response?.data);
-        
-        // 에러 시 기본 날씨 정보 반환
-        res.json({
-            name: '서울',
-            main: {
-                temp: 23,
-                humidity: 45
-            },
-            weather: [{
-                description: '맑음'
-            }],
-            wind: {
-                speed: 2
-            },
-            cod: 200
-        });
+app.get("/weather", async (req, res) => {
+  try {
+    // 🔑 WeatherAPI 키 (하드코딩 또는 환경변수에서 불러오기)
+    const API_KEY = process.env.WEATHERAPI_KEY || "fb1f1bca635a446c9dc192911251008"; 
+    if (!API_KEY) {
+      return res.status(500).json({ message: "Missing WeatherAPI key" });
     }
+
+    const { city, lat, lon } = req.query;
+    const q = lat && lon ? `${lat},${lon}` : (city || "Seoul");
+
+    const url = "https://api.weatherapi.com/v1/current.json";
+    console.log("PROVIDER=WEATHERAPI CALL:", url, "q=", q);
+
+    const { data } = await axios.get(url, {
+      params: { key: API_KEY, q, lang: "ko" },
+    });
+
+    // WeatherAPI 스키마 그대로 반환
+    return res.json(data);
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const payload = err?.response?.data || { message: err.message || "Unknown error" };
+    console.error("WEATHERAPI ERROR:", status, payload);
+
+    // 폴백(WeatherAPI 스키마와 동일)
+    return res.json({
+      location: { name: "서울" },
+      current: {
+        temp_c: 23,
+        humidity: 45,
+        wind_kph: 7.2,
+        condition: { text: "맑음" },
+      },
+    });
+  }
+});
+
+
+
+// 프로세스 전역 에러 로깅
+process.on("uncaughtException", (e) => {
+  console.error("UNCAUGHT:", e);
+});
+process.on("unhandledRejection", (e) => {
+  console.error("UNHANDLED:", e);
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-}); 
+app.listen(PORT, () => console.log(`### Server is running on http://localhost:${PORT}`));
+
+console.log("### BOOT: server.js entered ###");
+process.on("exit", (code) => console.log("### EXIT:", code));
+setTimeout(() => console.log("### still alive after 2s ###"), 2000);

@@ -1,7 +1,6 @@
 {
   "name": "placepick",
   "version": "1.0.0",
-  "description": "이미지와 URL에서 장소 정보를 추출하고 네이버 지도에 표시하는 웹 애플리케이션",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,9 +13,5 @@
     "express": "^5.1.0",
     "multer": "^2.0.1",
     "tesseract.js": "^6.0.1"
-  },
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
   }
 }

@@ -125,3 +125,7 @@ input[type="text"] {
   color: #333;
   border: 1px solid #e0dff0;
 }
+
+
+/* 로딩 콘솔 기본 = 숨기기로 만듦! */
+.loading { display: none; }

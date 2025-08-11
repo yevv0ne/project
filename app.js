@@ -66,6 +66,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof naver !== 'undefined' && naver.maps) {
         initMap();
     }
+    
+    // 나의 장소 초기화
+    myPlaces = loadMyPlaces();
+    myPlaceListEl = document.getElementById('myPlaceList');
+    myListSortByEl = document.getElementById('myListSortBy');
+    
+    // 정렬 컨트롤 이벤트 리스너 추가
+    if (myListSortByEl) {
+        myListSortByEl.addEventListener('change', renderMyPlaces);
+    }
+    
+    // 초기 렌더링
+    renderMyPlaces();
 });
 
 // 이미지 파일 처리 함수
@@ -778,8 +791,33 @@ function showResults(locations) {
             
             // 저장 버튼 이벤트 추가
             const saveBtn = li.querySelector('.save-btn');
-            saveBtn.addEventListener('click', () => {
-                savePlace(place);
+            saveBtn.addEventListener('click', async () => {
+                // 네이버 API로 장소 정보 검색
+                try {
+                    const response = await fetch(`/search-place?query=${encodeURIComponent(place)}`);
+                    const data = await response.json();
+                    
+                    if (data.items && data.items.length > 0) {
+                        const item = data.items[0];
+                        const lat = parseFloat(item.mapy) / 1e7;
+                        const lng = parseFloat(item.mapx) / 1e7;
+                        
+                        const coordinates = {
+                            lat: lat,
+                            lng: lng,
+                            address: item.roadAddress || item.address || ''
+                        };
+                        
+                        savePlace(place, item.category || '', coordinates);
+                    } else {
+                        // 검색 결과가 없으면 기본 정보로 저장
+                        savePlace(place);
+                    }
+                } catch (error) {
+                    console.error('장소 검색 실패:', error);
+                    // 에러가 발생해도 기본 정보로 저장
+                    savePlace(place);
+                }
             });
         });
         return;
@@ -836,29 +874,16 @@ function savePlace(name, type = '', coordinates = null) {
         type: type,
         coordinates: coordinates,
         createdAt: new Date().toISOString(),
-        region: coordinates ? inferRegion(coordinates.address) : '',
-        category: inferCategory(name, type)
+        region: coordinates && coordinates.address ? inferRegion(coordinates.address) : '',
+        category: inferCategory(name, type),
+        address: coordinates && coordinates.address ? coordinates.address : ''
     };
     
     upsertPlace(place);
     renderMyPlaces();
     
-    // 저장 성공 메시지
-    const saveBtn = event.target.closest('.save-btn');
-    if (saveBtn) {
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<i class="bi bi-check"></i> 저장됨';
-        saveBtn.classList.remove('btn-success');
-        saveBtn.classList.add('btn-secondary');
-        saveBtn.disabled = true;
-        
-        setTimeout(() => {
-            saveBtn.innerHTML = originalText;
-            saveBtn.classList.remove('btn-secondary');
-            saveBtn.classList.add('btn-success');
-            saveBtn.disabled = false;
-        }, 2000);
-    }
+    // 저장 성공 메시지 표시
+    showSuccessMessage('장소가 나의 장소에 저장되었습니다!');
 }
 
 // 지도에서 검색하여 표시하는 함수
@@ -999,10 +1024,9 @@ function showSuccessMessage(message) {
 } 
 
 const MY_PLACES_KEY = 'myPlaces:v1';
-let myPlaces = loadMyPlaces();
-const myPlaceListEl = document.getElementById('myPlaceList');
-const myListSortByEl = document.getElementById('myListSortBy');
-const myListOrderEl  = document.getElementById('myListOrder');
+let myPlaces = [];
+let myPlaceListEl = null;
+let myListSortByEl = null;
 
 function loadMyPlaces() {
   try {
@@ -1054,27 +1078,23 @@ function removePlaceAt(i) {
   renderMyPlaces();
 }
 
-function sortMyPlaces(list, sortBy, order) {
-  const sign = order === 'asc' ? 1 : -1;
+function sortMyPlaces(list, sortBy) {
   return list.slice().sort((a, b) => {
-    let va, vb;
-    switch (sortBy) {
-      case 'region':   va = a.region || ''; vb = b.region || ''; break;
-      case 'category': va = a.category || ''; vb = b.category || ''; break;
-      case 'name':     va = a.name || ''; vb = b.name || ''; break;
-      default:         va = a.createdAt || 0; vb = b.createdAt || 0;
+    if (sortBy === 'createdAt-desc') {
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    } else if (sortBy === 'createdAt-asc') {
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    } else if (sortBy === 'name-asc') {
+      return (a.name || '').localeCompare(b.name || '');
     }
-    if (va < vb) return -1 * sign;
-    if (va > vb) return  1 * sign;
     return 0;
   });
 }
 
 function renderMyPlaces() {
   if (!myPlaceListEl) return;
-  const sortBy = myListSortByEl?.value || 'createdAt';
-  const order  = myListOrderEl?.value  || 'desc';
-  const sorted = sortMyPlaces(myPlaces, sortBy, order);
+  const sortBy = myListSortByEl?.value || 'createdAt-desc';
+  const sorted = sortMyPlaces(myPlaces, sortBy);
 
   myPlaceListEl.innerHTML = '';
   if (sorted.length === 0) {
@@ -1095,8 +1115,8 @@ function renderMyPlaces() {
         </div>
       </div>
       <div class="d-flex gap-2">
-        ${p.lat && p.lng ? `<a class="btn btn-sm btn-outline-primary" target="_blank"
-            href="https://www.google.com/maps?q=${p.lat},${p.lng}">지도</a>` : ''}
+        ${p.coordinates && p.coordinates.lat && p.coordinates.lng ? `<a class="btn btn-sm btn-outline-primary" target="_blank"
+            href="https://www.google.com/maps?q=${p.coordinates.lat},${p.coordinates.lng}">지도</a>` : ''}
         <button class="btn btn-sm btn-outline-danger" data-remove="${i}">삭제</button>
       </div>
     `;
@@ -1112,12 +1132,7 @@ function renderMyPlaces() {
   });
 }
 
-// 정렬 컨트롤 이벤트
-if (myListSortByEl) myListSortByEl.addEventListener('change', renderMyPlaces);
-if (myListOrderEl)  myListOrderEl.addEventListener('change', renderMyPlaces);
 
-// 초기 렌더
-renderMyPlaces();
 
 /***** =========================
  *   결과 리스트에 "저장" 버튼

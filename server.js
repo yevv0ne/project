@@ -281,7 +281,7 @@ app.get('/search-place', async (req, res) => {
 app.get("/weather", async (req, res) => {
   try {
     // 🔑 WeatherAPI 키 (하드코딩 또는 환경변수에서 불러오기)
-    const API_KEY = process.env.WEATHERAPI_KEY || "e2121f6f8e954ebfb1b115328250808"; 
+    const API_KEY = process.env.WEATHERAPI_KEY || "fb1f1bca635a446c9dc192911251008"; 
     if (!API_KEY) {
       return res.status(500).json({ message: "Missing WeatherAPI key" });
     }

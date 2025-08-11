@@ -136,11 +136,13 @@ function initDragAndDrop() {
         dragDropArea.classList.remove('dragover');
     });
     
-    dragDropArea.addEventListener('drop', (e) => {
+    dragDropArea.addEventListener('drop', async (e) => {
         e.preventDefault();
         dragDropArea.classList.remove('dragover');
         
         const files = e.dataTransfer.files;
+        const items = e.dataTransfer.items;
+        
         if (files.length > 0) {
             const file = files[0];
             if (file.type.startsWith('image/')) {
@@ -154,6 +156,44 @@ function initDragAndDrop() {
             } else {
                 alert('이미지 파일만 드롭 가능합니다.');
             }
+        } else if (items.length > 0) {
+            // 링크 드롭 감지
+            for (let item of items) {
+                if (item.type === 'text/plain') {
+                    item.getAsString(async (text) => {
+                        if (isValidUrl(text)) {
+                            console.log('드롭된 URL 감지:', text);
+                            
+                            // 자동 처리 설정 확인
+                            const autoProcessToggle = document.getElementById('autoProcessToggle');
+                            if (autoProcessToggle && autoProcessToggle.checked) {
+                                // Instagram 링크는 즉시 자동 처리
+                                if (text.includes('instagram.com')) {
+                                    console.log('Instagram 링크 자동 처리 시작...');
+                                    await autoProcessUrl(text);
+                                } else {
+                                    // 일반 링크는 사용자에게 확인
+                                    if (confirm(`링크를 자동으로 처리하시겠습니까?\n\n${text}`)) {
+                                        await autoProcessUrl(text);
+                                    }
+                                }
+                            }
+                            
+                            // URL 입력 필드에 자동 입력
+                            if (urlInputField) {
+                                urlInputField.value = text;
+                                // URL 입력 섹션으로 자동 전환
+                                if (urlInput) {
+                                    urlInput.checked = true;
+                                    urlInputSection.style.display = 'block';
+                                    imageUploadSection.style.display = 'none';
+                                }
+                            }
+                        }
+                    });
+                    break;
+                }
+            }
         }
     });
     
@@ -165,8 +205,10 @@ function initDragAndDrop() {
 
 // 클립보드 붙여넣기 기능 초기화
 function initClipboardPaste() {
-    document.addEventListener('paste', (e) => {
+    document.addEventListener('paste', async (e) => {
         const items = e.clipboardData.items;
+        let processed = false;
+        
         for (let item of items) {
             if (item.type.startsWith('image/')) {
                 const file = item.getAsFile();
@@ -178,11 +220,101 @@ function initClipboardPaste() {
                     
                     // 이미지 처리 및 자동 OCR 시작
                     handleImageFile(file);
+                    processed = true;
                     break;
                 }
+            } else if (item.type === 'text/plain') {
+                // 텍스트 클립보드 감지
+                item.getAsString(async (text) => {
+                    if (isValidUrl(text)) {
+                        console.log('클립보드에서 URL 감지:', text);
+                        
+                        // 자동 처리 설정 확인
+                        const autoProcessToggle = document.getElementById('autoProcessToggle');
+                        if (autoProcessToggle && autoProcessToggle.checked) {
+                            // Instagram 링크는 즉시 자동 처리
+                            if (text.includes('instagram.com')) {
+                                console.log('Instagram 링크 자동 처리 시작...');
+                                await autoProcessUrl(text);
+                            } else {
+                                // 일반 링크는 사용자에게 확인
+                                if (confirm(`링크를 자동으로 처리하시겠습니까?\n\n${text}`)) {
+                                    await autoProcessUrl(text);
+                                }
+                            }
+                        }
+                        
+                        // URL 입력 필드에 자동 입력
+                        if (urlInputField) {
+                            urlInputField.value = text;
+                            // URL 입력 섹션으로 자동 전환
+                            if (urlInput) {
+                                urlInput.checked = true;
+                                urlInputSection.style.display = 'block';
+                                imageUploadSection.style.display = 'none';
+                            }
+                        }
+                    }
+                });
+                processed = true;
             }
         }
+        
+        if (processed) {
+            e.preventDefault();
+        }
     });
+}
+
+// URL 유효성 검사 함수
+function isValidUrl(string) {
+    try {
+        new URL(string);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+// 자동 URL 처리 함수
+async function autoProcessUrl(url) {
+    try {
+        console.log('자동 URL 처리 시작:', url);
+        showLoading();
+        
+        // URL에서 텍스트 추출
+        const response = await fetch('http://localhost:3000/extract', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+        });
+        
+        if (!response.ok) {
+            throw new Error('URL 처리 중 오류가 발생했습니다.');
+        }
+        
+        const data = await response.json();
+        const text = data.data && data.data.text ? data.data.text : '';
+        
+        // 장소명 후보 추출 및 지도에 마커 표시
+        const places = extractPlaceCandidates(text);
+        if (places.length > 0) {
+            markPlacesFromExtracted(places);
+        }
+        
+        showResults(places);
+        hideLoading();
+        
+        // 성공 메시지
+        showSuccessMessage(`링크가 자동으로 처리되었습니다! ${places.length}개의 장소를 발견했습니다.`);
+        
+    } catch (error) {
+        console.error('자동 URL 처리 중 오류:', error);
+        hideLoading();
+        showError('자동 처리 중 오류가 발생했습니다: ' + error.message);
+    }
 }
 
 // 장소명 후보 추출 함수 (Instagram 텍스트 최적화)
@@ -654,6 +786,30 @@ function hideLoading() {
 function showError(message) {
     hideLoading();
     alert(message);
+}
+
+// 성공 메시지 표시
+function showSuccessMessage(message) {
+    hideLoading();
+    
+    // 성공 메시지 토스트 생성
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    toast.innerHTML = `
+        <i class="bi bi-check-circle me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
 } 
 
 const MY_PLACES_KEY = 'myPlaces:v1';

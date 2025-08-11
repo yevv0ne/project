@@ -301,7 +301,8 @@ async function autoProcessUrl(url) {
         // 장소명 후보 추출 및 지도에 마커 표시
         const places = extractPlaceCandidates(text);
         if (places.length > 0) {
-            markPlacesFromExtracted(places);
+            // 마커 표시가 완료된 후에 로딩 숨기기
+            await markPlacesFromExtracted(places);
         }
         
         showResults(places);
@@ -437,11 +438,12 @@ async function processImage() {
                 
                 if (places.length > 0) {
                     console.log('지도에 마커 표시 시작...');
-                    markPlacesFromExtracted(places);
+                    await markPlacesFromExtracted(places);
                 } else {
                     console.log('추출된 장소명이 없습니다.');
                 }
                 showResults(places);
+                hideLoading();
             } catch (error) {
                 console.error('이미지 처리 중 오류:', error);
                 showError(error.message);
@@ -494,11 +496,12 @@ async function processUrl() {
         
         if (places.length > 0) {
             console.log('지도에 마커 표시 시작...');
-            markPlacesFromExtracted(places);
+            await markPlacesFromExtracted(places);
         } else {
             console.log('추출된 장소명이 없습니다.');
         }
         showResults(places);
+        hideLoading();
     } catch (error) {
         console.error('URL 처리 중 오류:', error);
         showError(error.message);

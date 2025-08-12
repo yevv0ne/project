@@ -307,6 +307,55 @@ app.get('/search-place', async (req, res) => {
     }
 });
 
+// ✅ 추가: URL에서 장소 정보 추출 엔드포인트
+app.post('/extract-url', async (req, res) => {
+    try {
+        const { url } = req.body;
+        
+        if (!url) {
+            return res.json({ success: false, error: 'URL이 필요합니다.' });
+        }
+        
+        console.log('URL 처리 요청:', url);
+        
+        // Instagram 링크 처리
+        if (url.includes('instagram.com')) {
+            // Instagram 링크에서 장소 정보 추출 (간단한 예시)
+            const places = ['Instagram 장소', 'Instagram 위치'];
+            return res.json({ success: true, places });
+        }
+        
+        // 일반 웹페이지 처리
+        try {
+            const response = await axios.get(url, {
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+            
+            const html = response.data;
+            
+            // HTML에서 장소 관련 텍스트 추출 (간단한 예시)
+            const placeMatches = html.match(/[가-힣]+(?:구|동|로|길|가|시|군|읍|면)/g) || [];
+            const uniquePlaces = [...new Set(placeMatches)].slice(0, 5);
+            
+            if (uniquePlaces.length > 0) {
+                res.json({ success: true, places: uniquePlaces });
+            } else {
+                res.json({ success: false, error: 'URL에서 장소 정보를 찾을 수 없습니다.' });
+            }
+        } catch (fetchError) {
+            console.error('URL fetch 오류:', fetchError);
+            res.json({ success: false, error: 'URL 접근에 실패했습니다.' });
+        }
+        
+    } catch (error) {
+        console.error('URL 처리 오류:', error);
+        res.json({ success: false, error: 'URL 처리 중 오류가 발생했습니다.' });
+    }
+});
+
 // 날씨 정보 프록시 엔드포인트
 app.get("/weather", async (req, res) => {
   try {

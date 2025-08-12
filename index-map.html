@@ -619,32 +619,20 @@
                 <p class="mt-2">처리 중...</p>
             </div>
 
+
+
+            <!-- 추출된 장소 정보 섹션 -->
             <div class="result-container">
                 <h4>추출된 장소 정보</h4>
                 <ul id="locationList" class="list-group">
                 </ul>
-
             </div>
 
-            <!-- ✅ 여기서부터 추가: 정렬 컨트롤 + 나의 장소 -->
-            <!-- 정렬 컨트롤 -->
-            <section class="container my-3">
-              <div class="d-flex gap-2 align-items-center">
-                <label class="form-label m-0">정렬 기준</label>
-                <select id="myListSortBy" class="form-select" style="max-width:200px">
-                  <option value="createdAt-desc">최신순</option>
-                  <option value="createdAt-asc">과거순</option>
-                  <option value="name-asc">가나다순</option>
-                </select>
-              </div>
-            </section>
-
-            <!-- 나의 장소 -->
+            <!-- 나의 장소 섹션 -->
             <section class="container mb-4">
-              <h5 class="mt-3">나의 장소</h5>
-              <ul id="myPlaceList" class="list-group"></ul>
+                <h5 class="mt-3">나의 장소</h5>
+                <ul id="myPlaceList" class="list-group"></ul>
             </section>
-            <!-- ✅ 추가 끝 -->
 
             <button id="processButton" class="btn btn-secondary w-100 mt-3" disabled>
                 <i class="bi bi-arrow-clockwise me-2"></i>재추출
@@ -740,32 +728,51 @@
         console.log('=== 지도 초기화 완료 ===');
     }
 
-    // 지도에 마커 표시 함수
-    function markOnMap(lat, lng, placeName, address) {
-        const point = new naver.maps.LatLng(lat, lng);
+    // 지도에 마커 표시 함수 (정보창 포함)
+function markOnMap(lat, lng, placeName, address) {
+    const point = new naver.maps.LatLng(lat, lng);
 
-        // 기존 마커 제거(선택)
-        if (window.marker) window.marker.setMap(null);
+    // 기존 마커 제거(선택)
+    if (window.marker) window.marker.setMap(null);
 
-        // 새 마커 생성
-        window.marker = new naver.maps.Marker({
-            position: point,
-            map: window.map,
-            title: placeName
-        });
+    // 새 마커 생성
+    window.marker = new naver.maps.Marker({
+        position: point,
+        map: window.map,
+        title: placeName
+    });
 
-        // 정보창(선택)
-        const infoWindow = new naver.maps.InfoWindow({
-            content: `<div style="padding:10px;"><b>${placeName}</b><br>${address ? address : ""}</div>`
-        });
-        naver.maps.Event.addListener(window.marker, "click", function() {
-            infoWindow.open(window.map, window.marker);
-        });
+    // ✅ 정보창 생성 및 스타일링
+    const infoWindow = new naver.maps.InfoWindow({
+        content: `
+            <div class="info-window">
+                <h3>${placeName}</h3>
+                <p class="address">${address || '주소 정보 없음'}</p>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-primary" onclick="addToFavoritesFromMap('${placeName}', '${address}', ${lat}, ${lng})">
+                        ⭐ 즐겨찾기 추가
+                    </button>
+                </div>
+            </div>
+        `,
+        maxWidth: 300,
+        backgroundColor: "#fff",
+        borderColor: "#6f42c1",
+        borderWidth: 2,
+        anchorSize: new naver.maps.Size(20, 20),
+        anchorColor: "#fff",
+        pixelOffset: new naver.maps.Point(0, -10)
+    });
 
-        // 지도 중심 이동
-        window.map.setCenter(point);
-        window.map.setZoom(15);
-    }
+    // 마커 클릭 시 정보창 표시
+    naver.maps.Event.addListener(window.marker, "click", function() {
+        infoWindow.open(window.map, window.marker);
+    });
+
+    // 지도 중심 이동
+    window.map.setCenter(point);
+    window.map.setZoom(15);
+}
 
 function copyLocations() {
     const items = Array.from(document.querySelectorAll('#locationList li'));
@@ -884,6 +891,34 @@ function markPlacesFromExtracted(placeCandidates) {
           map: map,
           title: placeName
         });
+        
+        // ✅ 정보창 생성 및 스타일링
+        const infoWindow = new naver.maps.InfoWindow({
+            content: `
+                <div class="info-window">
+                    <h3>${item.title.replace(/<[^>]*>/g, '')}</h3>
+                    <p class="address">${item.address || '주소 정보 없음'}</p>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="addToFavoritesFromMap('${item.title.replace(/<[^>]*>/g, '')}', '${item.address}', ${lat}, ${lng})">
+                            ⭐ 즐겨찾기 추가
+                        </button>
+                    </div>
+                </div>
+            `,
+            maxWidth: 300,
+            backgroundColor: "#fff",
+            borderColor: "#6f42c1",
+            borderWidth: 2,
+            anchorSize: new naver.maps.Size(20, 20),
+            anchorColor: "#fff",
+            pixelOffset: new naver.maps.Point(0, -10)
+        });
+
+        // 마커 클릭 시 정보창 표시
+        naver.maps.Event.addListener(marker, "click", function() {
+            infoWindow.open(map, marker);
+        });
+        
         window.markers.push(marker);
         // 첫 번째 마커는 지도 중심 이동
         if (window.markers.length === 1) {
@@ -1071,24 +1106,63 @@ async function loadFavorites() {
 }
 
 function displayFavorites(favorites) {
-    const favoritesList = document.getElementById('favoritesList');
-    favoritesList.innerHTML = '';
+    const myPlaceList = document.getElementById('myPlaceList');
+    myPlaceList.innerHTML = '';
     
     if (favorites.length === 0) {
-        favoritesList.innerHTML = '<p style="color: #999; font-size: 0.8rem;">즐겨찾기한 장소가 없습니다.</p>';
+        myPlaceList.innerHTML = '<li class="list-group-item text-muted">즐겨찾기한 장소가 없습니다.</li>';
         return;
     }
     
     favorites.forEach(favorite => {
-        const favoriteItem = document.createElement('div');
-        favoriteItem.className = 'favorite-item';
-        favoriteItem.innerHTML = `
-            <h6>${favorite.place_name}</h6>
-            <p>${favorite.address}</p>
-            <button class="remove-favorite" onclick="removeFavorite(${favorite.id})">삭제</button>
+        const li = document.createElement('li');
+        li.className = 'list-group-item';
+        
+        // 카테고리와 지역 정보 추출 (간단한 예시)
+        const address = favorite.address || '';
+        const region = address.match(/([가-힣]+구)/)?.[1] || '기타';
+        const category = '기타'; // 실제로는 더 정교한 분류 필요
+        
+        li.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="location-name">${favorite.place_name}</div>
+                    <div class="location-address">${favorite.address}</div>
+                    <div class="mt-2">
+                        <span class="badge bg-primary me-2">지역: ${region}</span>
+                        <span class="badge bg-secondary">카테고리: ${category}</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="showOnMap(${favorite.latitude}, ${favorite.longitude}, '${favorite.place_name}', '${favorite.address}')">
+                        <i class="bi bi-map"></i> 지도
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="removeFavorite(${favorite.id})">
+                        <i class="bi bi-trash"></i> 삭제
+                    </button>
+                </div>
+            </div>
         `;
-        favoritesList.appendChild(favoriteItem);
+        
+        myPlaceList.appendChild(li);
     });
+}
+
+// 지도에서 보기 함수 추가
+function showOnMap(lat, lng, placeName, address) {
+    if (window.map) {
+        // 지도에 마커 표시
+        markOnMap(lat, lng, placeName, address);
+        
+        // 즐겨찾기 버튼 추가
+        if (currentUser) {
+            addFavoriteButton(placeName, address, lat, lng);
+        }
+        
+        alert(`"${placeName}"을(를) 지도에 표시했습니다!`);
+    } else {
+        alert('지도가 로드되지 않았습니다.');
+    }
 }
 
 async function removeFavorite(favoriteId) {
@@ -1146,6 +1220,34 @@ function markOnMap(address) {
                         position: point, 
                         map: window.map 
                     });
+                    
+                    // ✅ 정보창 생성 및 스타일링
+                    const infoWindow = new naver.maps.InfoWindow({
+                        content: `
+                            <div class="info-window">
+                                <h3>${item.title.replace(/<[^>]*>/g, '')}</h3>
+                                <p class="address">${item.address || '주소 정보 없음'}</p>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-primary" onclick="addToFavoritesFromMap('${item.title.replace(/<[^>]*>/g, '')}', '${item.address}', ${lat}, ${lng})">
+                                        ⭐ 즐겨찾기 추가
+                                    </button>
+                                </div>
+                            </div>
+                        `,
+                        maxWidth: 300,
+                        backgroundColor: "#fff",
+                        borderColor: "#6f42c1",
+                        borderWidth: 2,
+                        anchorSize: new naver.maps.Size(20, 20),
+                        anchorColor: "#fff",
+                        pixelOffset: new naver.maps.Point(0, -10)
+                    });
+
+                    // 마커 클릭 시 정보창 표시
+                    naver.maps.Event.addListener(window.marker, "click", function() {
+                        infoWindow.open(window.map, window.marker);
+                    });
+                    
                     window.map.setCenter(point);
                     window.map.setZoom(15);
                     
@@ -1165,6 +1267,34 @@ function markOnMap(address) {
             position: point, 
             map: window.map 
         });
+        
+        // ✅ 정보창 생성 및 스타일링
+        const infoWindow = new naver.maps.InfoWindow({
+            content: `
+                <div class="info-window">
+                    <h3>${address}</h3>
+                    <p class="address">주소 정보</p>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="addToFavoritesFromMap('${address}', '주소 정보', ${point.x}, ${point.y})">
+                            ⭐ 즐겨찾기 추가
+                        </button>
+                    </div>
+                </div>
+            `,
+            maxWidth: 300,
+            backgroundColor: "#fff",
+            borderColor: "#6f42c1",
+            borderWidth: 2,
+            anchorSize: new naver.maps.Size(20, 20),
+            anchorColor: "#fff",
+            pixelOffset: new naver.maps.Point(0, -10)
+        });
+
+        // 마커 클릭 시 정보창 표시
+        naver.maps.Event.addListener(window.marker, "click", function() {
+            infoWindow.open(window.map, window.marker);
+        });
+        
         window.map.setCenter(point);
         window.map.setZoom(15);
     });
@@ -1232,6 +1362,348 @@ async function addToFavorites(placeName, address, lat, lng) {
     } catch (error) {
         console.error('즐겨찾기 추가 오류:', error);
         alert('즐겨찾기 추가 중 오류가 발생했습니다.');
+    }
+}
+
+// ✅ 추가: 지도 정보창에서 즐겨찾기 추가
+function addToFavoritesFromMap(placeName, address, lat, lng) {
+    if (!currentUser) {
+        alert('로그인이 필요합니다.');
+        return;
+    }
+    
+    // 즐겨찾기 추가 함수 호출
+    addToFavorites(placeName, address, lat, lng);
+}
+
+// ✅ 추가: PlacePick 핵심 기능들
+// 입력 방식 전환
+document.addEventListener('DOMContentLoaded', function() {
+    // 입력 방식 전환 이벤트 리스너
+    document.getElementById('imageInput').addEventListener('change', function() {
+        document.getElementById('imageUploadSection').style.display = 'block';
+        document.getElementById('urlInputSection').style.display = 'none';
+    });
+    
+    document.getElementById('urlInput').addEventListener('change', function() {
+        document.getElementById('imageUploadSection').style.display = 'none';
+        document.getElementById('urlInputSection').style.display = 'block';
+    });
+    
+    // 이미지 파일 선택 이벤트
+    document.getElementById('imageFile').addEventListener('change', handleImageFileSelect);
+    
+    // 드래그앤드롭 이벤트
+    const dragDropArea = document.getElementById('dragDropArea');
+    dragDropArea.addEventListener('dragover', handleDragOver);
+    dragDropArea.addEventListener('drop', handleDrop);
+    dragDropArea.addEventListener('dragenter', handleDragEnter);
+    dragDropArea.addEventListener('dragleave', handleDragLeave);
+    
+    // 클립보드 붙여넣기 이벤트
+    document.addEventListener('paste', handlePaste);
+    
+    // URL 입력 자동 처리
+    document.getElementById('urlInputField').addEventListener('input', handleUrlInput);
+    
+    // 재추출 버튼 이벤트
+    document.getElementById('processButton').addEventListener('click', reprocessData);
+});
+
+// 이미지 파일 선택 처리
+function handleImageFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        displayImagePreview(file);
+        processImage(file);
+    }
+}
+
+// 이미지 미리보기 표시
+function displayImagePreview(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById('imagePreview');
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+// 이미지 처리 (OCR)
+async function processImage(file) {
+    showLoading(true);
+    
+    try {
+        const base64 = await fileToBase64(file);
+        const text = await ocrSpaceImage(base64, 'kor');
+        
+        if (text) {
+            const places = extractPlacesFromText(text);
+            displayResults(places);
+            markPlacesFromExtracted(places);
+        } else {
+            alert('이미지에서 텍스트를 추출할 수 없습니다.');
+        }
+    } catch (error) {
+        console.error('이미지 처리 오류:', error);
+        alert('이미지 처리 중 오류가 발생했습니다.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 파일을 Base64로 변환
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// 드래그앤드롭 처리
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.startsWith('image/')) {
+        const file = files[0];
+        document.getElementById('imageFile').files = e.dataTransfer.files;
+        displayImagePreview(file);
+        processImage(file);
+    }
+}
+
+// 클립보드 붙여넣기 처리
+function handlePaste(e) {
+    const items = e.clipboardData.items;
+    for (let item of items) {
+        if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+                document.getElementById('imageFile').files = [file];
+                displayImagePreview(file);
+                processImage(file);
+            }
+            break;
+        }
+    }
+}
+
+// URL 입력 처리
+function handleUrlInput(e) {
+    const url = e.target.value.trim();
+    if (url && document.getElementById('autoProcessToggle').checked) {
+        // Instagram 링크 자동 처리
+        if (url.includes('instagram.com')) {
+            setTimeout(() => processUrl(url), 1000);
+        }
+    }
+}
+
+// URL 처리
+async function processUrl(url) {
+    showLoading(true);
+    
+    try {
+        const response = await fetch('/extract-url', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url: url })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.places) {
+            displayResults(data.places);
+            markPlacesFromExtracted(data.places);
+        } else {
+            alert('URL에서 장소 정보를 추출할 수 없습니다.');
+        }
+    } catch (error) {
+        console.error('URL 처리 오류:', error);
+        alert('URL 처리 중 오류가 발생했습니다.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 텍스트에서 장소 추출 (개선된 버전)
+function extractPlacesFromText(text) {
+    console.log('=== 텍스트에서 장소 추출 시작 ===');
+    console.log('원본 텍스트:', text);
+    
+    // 1. 줄 단위로 분리하고 빈 줄 제거
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    console.log('분리된 줄들:', lines);
+    
+    // 2. 장소 관련 키워드가 포함된 텍스트 찾기
+    const placeKeywords = [
+        '구', '동', '로', '길', '가', '시', '군', '읍', '면', '역', '학교', '대학교',
+        '카페', '식당', '레스토랑', '호텔', '병원', '은행', '마트', '백화점', '극장'
+    ];
+    
+    const extractedPlaces = [];
+    
+    lines.forEach((line, index) => {
+        const trimmedLine = line.trim();
+        
+        // 키워드가 포함된 줄 찾기
+        const hasKeyword = placeKeywords.some(keyword => 
+            trimmedLine.includes(keyword)
+        );
+        
+        if (hasKeyword && trimmedLine.length > 2) {
+            // HTML 태그 제거
+            const cleanText = trimmedLine.replace(/<[^>]*>/g, '');
+            extractedPlaces.push(cleanText);
+            console.log(`장소 후보 ${index + 1}:`, cleanText);
+        }
+    });
+    
+    // 3. 키워드가 없는 경우에도 의미있는 텍스트 추출
+    if (extractedPlaces.length === 0) {
+        lines.forEach((line, index) => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.length > 2 && trimmedLine.length < 50) {
+                const cleanText = trimmedLine.replace(/<[^>]*>/g, '');
+                extractedPlaces.push(cleanText);
+                console.log(`텍스트 후보 ${index + 1}:`, cleanText);
+            }
+        });
+    }
+    
+    // 4. 중복 제거하고 최대 5개 반환
+    const uniquePlaces = [...new Set(extractedPlaces)].slice(0, 5);
+    console.log('최종 추출된 장소들:', uniquePlaces);
+    
+    return uniquePlaces;
+}
+
+// 결과 표시 (개선된 버전)
+function displayResults(places) {
+    const resultContainer = document.querySelector('.result-container');
+    const locationList = document.getElementById('locationList');
+    
+    locationList.innerHTML = '';
+    
+    if (places.length === 0) {
+        locationList.innerHTML = '<li class="list-group-item text-muted">추출된 장소가 없습니다.</li>';
+        resultContainer.style.display = 'block';
+        return;
+    }
+    
+    places.forEach((place, index) => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item';
+        
+        // 첫 번째 장소는 더 강조
+        if (index === 0) {
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <span class="pin-emoji">📍</span>
+                        <div class="location-name">${place}</div>
+                        <div class="location-address">추출된 텍스트</div>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="searchPlace('${place}')">
+                        <i class="bi bi-search"></i> 검색
+                    </button>
+                </div>
+            `;
+        } else {
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <span class="pin-emoji">📍</span>
+                        <div class="location-name">${place}</div>
+                        <div class="location-address">추출된 텍스트</div>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="searchPlace('${place}')">
+                        <i class="bi bi-search"></i> 검색
+                    </button>
+                </div>
+            `;
+        }
+        
+        locationList.appendChild(li);
+    });
+    
+    resultContainer.style.display = 'block';
+    document.getElementById('processButton').disabled = false;
+}
+
+// 장소 검색 함수 추가
+function searchPlace(placeName) {
+    console.log('장소 검색:', placeName);
+    
+    // 네이버 API로 장소 검색
+    fetch('/search-place?query=' + encodeURIComponent(placeName))
+        .then(res => res.json())
+        .then(data => {
+            if (data.items && data.items.length > 0) {
+                const item = data.items[0];
+                const lng = parseFloat(item.mapx) / 1e7;
+                const lat = parseFloat(item.mapy) / 1e7;
+                
+                // 지도에 마커 표시
+                markOnMap(lat, lng, item.title.replace(/<[^>]*>/g, ''), item.address);
+                
+                // 즐겨찾기 버튼 추가
+                if (currentUser) {
+                    addFavoriteButton(
+                        item.title.replace(/<[^>]*>/g, ''), 
+                        item.address, 
+                        lat, 
+                        lng
+                    );
+                }
+                
+                alert(`"${placeName}"을(를) 지도에 표시했습니다!`);
+            } else {
+                alert(`"${placeName}"에 대한 정보를 찾을 수 없습니다.`);
+            }
+        })
+        .catch(error => {
+            console.error('장소 검색 오류:', error);
+            alert('장소 검색 중 오류가 발생했습니다.');
+        });
+}
+
+// 로딩 표시/숨김
+function showLoading(show) {
+    const loading = document.querySelector('.loading');
+    loading.style.display = show ? 'block' : 'none';
+}
+
+// 재처리
+function reprocessData() {
+    const imageFile = document.getElementById('imageFile').files[0];
+    const urlField = document.getElementById('urlInputField');
+    
+    if (imageFile) {
+        processImage(imageFile);
+    } else if (urlField.value.trim()) {
+        processUrl(urlField.value.trim());
     }
 }
 </script>

@@ -14,11 +14,169 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="api.js"></script>
-    <script src="app.js"></script>
 
     <style>
         body {
             background: #f4f6fb;
+        }
+        
+        /* 로그인 관련 스타일 */
+        .auth-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .auth-box {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            min-width: 400px;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        .auth-container h4 {
+            color: #6f42c1;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #ede7f6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #b39ddb;
+        }
+        
+        .auth-btn {
+            width: 100%;
+            padding: 10px;
+            background: #6f42c1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .auth-btn:hover {
+            background: #5a32a3;
+        }
+        
+        .auth-switch {
+            text-align: center;
+            margin-top: 15px;
+        }
+        
+        .auth-switch a {
+            color: #6f42c1;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        
+        .auth-switch a:hover {
+            text-decoration: underline;
+        }
+        
+        .user-info {
+            display: none;
+            text-align: center;
+        }
+        
+        .user-info h5 {
+            color: #6f42c1;
+            margin-bottom: 10px;
+        }
+        
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        
+        .favorites-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ede7f6;
+        }
+        
+        .favorite-item {
+            background: #f8f5ff;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .favorite-item h6 {
+            color: #6f42c1;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .favorite-item p {
+            color: #666;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .remove-favorite {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            float: right;
         }
         .upload-container {
             max-width: 600px;
@@ -279,7 +437,66 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- 로그인/회원가입 컨테이너 -->
+    <div class="auth-container">
+        <div class="auth-box">
+            <!-- 로그인 폼 -->
+            <div id="loginForm" class="auth-form active">
+                <h2 style="color: #6f42c1; margin-bottom: 30px;">PlacePick</h2>
+                <h4>로그인</h4>
+                <form id="loginFormElement">
+                    <div class="form-group">
+                        <label for="loginEmail">이메일</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">비밀번호</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="auth-btn">로그인</button>
+                </form>
+                <div class="auth-switch">
+                    <a onclick="showRegisterForm()">계정이 없으신가요? 회원가입</a>
+                </div>
+            </div>
+
+            <!-- 회원가입 폼 -->
+            <div id="registerForm" class="auth-form">
+                <h2 style="color: #6f42c1; margin-bottom: 30px;">PlacePick</h2>
+                <h4>회원가입</h4>
+                <form id="registerFormElement">
+                    <div class="form-group">
+                        <label for="registerEmail">이메일</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerUsername">사용자명</label>
+                        <input type="text" id="registerUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">비밀번호</label>
+                        <input type="password" id="registerPassword" required minlength="6">
+                    </div>
+                    <button type="submit" class="auth-btn">회원가입</button>
+                </form>
+                <div class="auth-switch">
+                    <a onclick="showLoginForm()">이미 계정이 있으신가요? 로그인</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PlacePick 메인 기능 컨테이너 (로그인 전에는 숨김) -->
+    <div id="mainContent" class="container" style="display: none;">
+        <!-- 사용자 정보 헤더 -->
+        <div class="user-header" style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h5 id="userName" style="color: #6f42c1; margin: 0;">사용자명</h5>
+                <p id="userEmail" style="color: #666; margin: 0; font-size: 0.9rem;">이메일</p>
+            </div>
+            <button class="logout-btn" onclick="logout()">로그아웃</button>
+        </div>
+        
         <div class="upload-container">
             <div class="text-center" style="margin-bottom: 0.1rem; margin-top: 0.1rem;">
                 <svg width="570" height="170" viewBox="0 0 570 170" xmlns="http://www.w3.org/2000/svg">
@@ -677,6 +894,346 @@ function markPlacesFromExtracted(placeCandidates) {
   });
 }
 window.markPlacesFromExtracted = markPlacesFromExtracted;
+
+// 로그인 관련 JavaScript 함수들
+let currentUser = null;
+
+// 페이지 로드 시 사용자 상태 확인
+document.addEventListener('DOMContentLoaded', function() {
+    checkUserStatus();
+    loadFavorites();
+    
+    // 폼 이벤트 리스너 추가
+    document.getElementById('loginFormElement').addEventListener('submit', handleLogin);
+    document.getElementById('registerFormElement').addEventListener('submit', handleRegister);
+});
+
+// 사용자 상태 확인
+async function checkUserStatus() {
+    try {
+        const response = await fetch('/api/user');
+        const data = await response.json();
+        
+        if (data.success && data.user) {
+            currentUser = data.user;
+            showMainContent();
+        } else {
+            // 로그인되지 않은 경우 로그인 화면 표시
+            document.getElementById('mainContent').style.display = 'none';
+            document.querySelector('.auth-container').style.display = 'flex';
+            showLoginForm();
+        }
+    } catch (error) {
+        console.error('사용자 상태 확인 실패:', error);
+        // 오류 발생 시 로그인 화면 표시
+        document.getElementById('mainContent').style.display = 'none';
+        document.querySelector('.auth-container').style.display = 'flex';
+        showLoginForm();
+    }
+}
+
+// 로그인 처리
+async function handleLogin(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentUser = data.user;
+            showMainContent();
+            loadFavorites();
+            alert('로그인되었습니다!');
+        } else {
+            alert(data.error || '로그인에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('로그인 오류:', error);
+        alert('로그인 중 오류가 발생했습니다.');
+    }
+}
+
+// 회원가입 처리
+async function handleRegister(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('registerEmail').value;
+    const username = document.getElementById('registerUsername').value;
+    const password = document.getElementById('registerPassword').value;
+    
+    try {
+        const response = await fetch('/api/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('회원가입이 완료되었습니다! 로그인해주세요.');
+            showLoginForm();
+        } else {
+            alert(data.error || '회원가입에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('회원가입 오류:', error);
+        alert('회원가입 중 오류가 발생했습니다.');
+    }
+}
+
+// 로그아웃
+async function logout() {
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentUser = null;
+            showLoginScreen();
+            clearFavorites();
+            alert('로그아웃되었습니다.');
+        } else {
+            alert(data.error || '로그아웃에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('로그아웃 오류:', error);
+        alert('로그아웃 중 오류가 발생했습니다.');
+    }
+}
+
+// 폼 표시/숨김 함수들
+function showLoginForm() {
+    document.getElementById('loginForm').classList.add('active');
+    document.getElementById('registerForm').classList.remove('active');
+}
+
+function showRegisterForm() {
+    document.getElementById('loginForm').classList.remove('active');
+    document.getElementById('registerForm').classList.add('active');
+}
+
+// 메인 컨텐츠 표시 (로그인 성공 후)
+function showMainContent() {
+    // 로그인 컨테이너 숨기기
+    document.querySelector('.auth-container').style.display = 'none';
+    
+    // 메인 컨텐츠 표시
+    document.getElementById('mainContent').style.display = 'block';
+    
+    // 사용자 정보 업데이트
+    document.getElementById('userName').textContent = currentUser.username;
+    document.getElementById('userEmail').textContent = currentUser.user_email;
+}
+
+// 로그인 화면으로 돌아가기 (로그아웃 후)
+function showLoginScreen() {
+    // 메인 컨텐츠 숨기기
+    document.getElementById('mainContent').style.display = 'none';
+    
+    // 로그인 컨테이너 표시
+    document.querySelector('.auth-container').style.display = 'flex';
+    
+    // 로그인 폼 표시
+    showLoginForm();
+}
+
+// 즐겨찾기 관련 함수들
+async function loadFavorites() {
+    if (!currentUser) return;
+    
+    try {
+        const response = await fetch('/api/favorites');
+        const data = await response.json();
+        
+        if (data.success) {
+            displayFavorites(data.data);
+        }
+    } catch (error) {
+        console.error('즐겨찾기 로드 실패:', error);
+    }
+}
+
+function displayFavorites(favorites) {
+    const favoritesList = document.getElementById('favoritesList');
+    favoritesList.innerHTML = '';
+    
+    if (favorites.length === 0) {
+        favoritesList.innerHTML = '<p style="color: #999; font-size: 0.8rem;">즐겨찾기한 장소가 없습니다.</p>';
+        return;
+    }
+    
+    favorites.forEach(favorite => {
+        const favoriteItem = document.createElement('div');
+        favoriteItem.className = 'favorite-item';
+        favoriteItem.innerHTML = `
+            <h6>${favorite.place_name}</h6>
+            <p>${favorite.address}</p>
+            <button class="remove-favorite" onclick="removeFavorite(${favorite.id})">삭제</button>
+        `;
+        favoritesList.appendChild(favoriteItem);
+    });
+}
+
+async function removeFavorite(favoriteId) {
+    try {
+        const response = await fetch(`/api/favorites/${favoriteId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadFavorites();
+            alert('즐겨찾기에서 제거되었습니다.');
+        } else {
+            alert(data.error || '즐겨찾기 제거에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('즐겨찾기 제거 오류:', error);
+        alert('즐겨찾기 제거 중 오류가 발생했습니다.');
+    }
+}
+
+function clearFavorites() {
+    document.getElementById('favoritesList').innerHTML = '';
+}
+
+// 즐겨찾기에 장소 추가 (기존 markOnMap 함수 수정)
+function markOnMap(address) {
+    if (!window.naver?.maps) throw new Error('네이버 지도 API 로드 실패');
+
+    const map = window.map || new naver.maps.Map('map', {
+        center: new naver.maps.LatLng(37.5665, 126.9780),
+        zoom: 10
+    });
+    window.map = map;
+
+    // 1차: 주소로 검색
+    naver.maps.Service.geocode({ query: address }, (status, response) => {
+        if (status === naver.maps.Service.Status.ERROR || response.v2.meta.totalCount === 0) {
+            // 2차: 장소명 검색 프록시
+            fetch('/search-place?query=' + encodeURIComponent(address))
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.items || data.items.length === 0) {
+                        alert('주소/장소를 찾을 수 없습니다.');
+                        return;
+                    }
+                    var item = data.items[0];
+                    var lng = parseFloat(item.mapx) / 1e7;
+                    var lat = parseFloat(item.mapy) / 1e7;
+                    var point = new naver.maps.LatLng(lat, lng);
+                    
+                    // 마커 생성
+                    window.marker = new naver.maps.Marker({ 
+                        position: point, 
+                        map: window.map 
+                    });
+                    window.map.setCenter(point);
+                    window.map.setZoom(15);
+                    
+                    // 즐겨찾기 버튼 추가 (로그인된 경우)
+                    if (currentUser) {
+                        addFavoriteButton(item.title.replace(/<[^>]*>/g, ''), item.address, lat, lng);
+                    }
+                })
+                .catch(() => {
+                    alert('주소/장소를 찾을 수 없습니다.');
+                });
+            return;
+        }
+        var item = response.v2.addresses[0];
+        var point = new naver.maps.Point(item.x, item.y);
+        window.marker = new naver.maps.Marker({ 
+            position: point, 
+            map: window.map 
+        });
+        window.map.setCenter(point);
+        window.map.setZoom(15);
+    });
+}
+
+// 즐겨찾기 버튼 추가
+function addFavoriteButton(placeName, address, lat, lng) {
+    // 기존 즐겨찾기 버튼 제거
+    const existingBtn = document.querySelector('.favorite-add-btn');
+    if (existingBtn) existingBtn.remove();
+    
+    const favoriteBtn = document.createElement('button');
+    favoriteBtn.className = 'favorite-add-btn';
+    favoriteBtn.innerHTML = '⭐ 즐겨찾기 추가';
+    favoriteBtn.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        z-index: 1000;
+    `;
+    
+    favoriteBtn.onclick = () => addToFavorites(placeName, address, lat, lng);
+    
+    const mapContainer = document.getElementById('map');
+    mapContainer.style.position = 'relative';
+    mapContainer.appendChild(favoriteBtn);
+}
+
+// 즐겨찾기에 추가
+async function addToFavorites(placeName, address, lat, lng) {
+    if (!currentUser) {
+        alert('로그인이 필요합니다.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/favorites', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                placeName: placeName,
+                address: address,
+                latitude: lat,
+                longitude: lng
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('즐겨찾기에 추가되었습니다!');
+            loadFavorites();
+        } else {
+            alert(data.error || '즐겨찾기 추가에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('즐겨찾기 추가 오류:', error);
+        alert('즐겨찾기 추가 중 오류가 발생했습니다.');
+    }
+}
 </script>
 </body>
 </html>

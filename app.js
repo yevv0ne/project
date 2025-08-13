@@ -79,6 +79,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 로그인 사용자 확인 → 마이그레이션 → 목록 초기 로드
     CURRENT_USER = await fetchCurrentUser();
     if (CURRENT_USER) {
+        // 사용자 닉네임 표시
+        const userNicknameEl = document.getElementById('userNickname');
+        if (userNicknameEl) {
+            if (CURRENT_USER.nickname && CURRENT_USER.nickname.trim()) {
+                userNicknameEl.textContent = CURRENT_USER.nickname;
+                console.log('✅ 닉네임 표시 성공:', CURRENT_USER.nickname);
+            } else {
+                userNicknameEl.textContent = '닉네임 없음';
+                console.log('⚠️ 닉네임이 비어있음');
+            }
+        }
+        
         await migrateLocalToServerIfNeeded();
         await refreshMyPlacesFromServer();
     } else {

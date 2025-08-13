@@ -63,9 +63,14 @@ db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
+    nickname TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`);
+  
+  // 기존 사용자를 위한 닉네임 마이그레이션
+  db.run(`ALTER TABLE users ADD COLUMN nickname TEXT`);
+  db.run(`UPDATE users SET nickname = '사용자' || id WHERE nickname IS NULL OR nickname = ''`);
   
   // ─────────────────────────────────────────────
   // DB: places 테이블 (users 바로 아래에 두세요)
@@ -88,13 +93,13 @@ const findUserByEmail = (email) => new Promise((resolve, reject)=>{
     if (err) reject(err); else resolve(row);
   });
 });
-const createUser = async (email, password) => {
+const createUser = async (email, nickname, password) => {
   const hash = await bcrypt.hash(password, 10);
   const createdAt = new Date().toISOString();
   return new Promise((resolve, reject)=>{
-    db.run(`INSERT INTO users(email,password_hash,created_at) VALUES(?,?,?)`,
-      [email, hash, createdAt],
-      function(err){ if (err) reject(err); else resolve({ id: this.lastID, email }); }
+    db.run(`INSERT INTO users(email,nickname,password_hash,created_at) VALUES(?,?,?,?)`,
+      [email, nickname, hash, createdAt],
+      function(err){ if (err) reject(err); else resolve({ id: this.lastID, email, nickname }); }
     );
   });
 };
@@ -108,12 +113,12 @@ app.get("/auth/me", (req,res)=>{
 });
 app.post("/auth/register", async (req,res)=>{
   try{
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ ok:false, error:"email/password required" });
+    const { email, nickname, password } = req.body || {};
+    if (!email || !nickname || !password) return res.status(400).json({ ok:false, error:"email/nickname/password required" });
     const exists = await findUserByEmail(email);
     if (exists) return res.status(409).json({ ok:false, error:"already_exists" });
-    const user = await createUser(email, password);
-    req.session.user = { id: user.id, email: user.email };
+    const user = await createUser(email, nickname, password);
+    req.session.user = { id: user.id, email: user.email, nickname: user.nickname };
     return res.json({ ok:true });
   }catch(e){ return res.status(500).json({ ok:false, error:"register_failed" }); }
 });
@@ -125,7 +130,7 @@ app.post("/auth/login", async (req,res)=>{
     if (!row) return res.status(401).json({ ok:false, error:"invalid" });
     const ok = await bcrypt.compare(password, row.password_hash);
     if (!ok) return res.status(401).json({ ok:false, error:"invalid" });
-    req.session.user = { id: row.id, email: row.email };
+    req.session.user = { id: row.id, email: row.email, nickname: row.nickname };
     return res.json({ ok:true });
   }catch(e){ return res.status(500).json({ ok:false, error:"login_failed" }); }
 });

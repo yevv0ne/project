@@ -49,6 +49,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 재추출 버튼 클릭 이벤트
     if (processButton) {
         processButton.addEventListener('click', async () => {
+            beginNewPlaceRenderCycle();
+            
             // 현재 이미지가 있는지 확인
             if (imagePreview.src && imagePreview.src !== 'data:') {
                 console.log('재추출 시작: 이미지 재처리...');
@@ -355,7 +357,8 @@ async function autoProcessUrl(url) {
             await markPlacesFromExtracted(places);
         }
         
-        await findBestPlaceFromText(text, hashtags);
+        showResults(places);
+        findBestPlaceFromText(text, hashtags);
         hideLoading();
         
         // 성공 메시지
@@ -546,6 +549,7 @@ async function processImage() {
                 } else {
                     console.log('추출된 장소명이 없습니다.');
                 }
+                showResults(places);
                 hideLoading();
 
                 // 이미지에는 해시태그가 많지 않지만, 본문만으로도 랭킹 시도
@@ -609,7 +613,8 @@ async function processUrl() {
         } else {
             console.log('추출된 장소명이 없습니다.');
         }
-        await findBestPlaceFromText(text, hashtags); // 추가
+        showResults(places);
+        findBestPlaceFromText(text, hashtags); // 추가
         hideLoading();
     } catch (error) {
         console.error('URL 처리 중 오류:', error);
@@ -711,66 +716,6 @@ function createMarker(location) {
     return marker;
 }
 
-// OCR/URL에서 추출된 장소명(또는 주소) 배열을 받아 지도에 마커 표시
-async function markPlacesFromExtracted(placeCandidates) {
-    if (!Array.isArray(placeCandidates) || placeCandidates.length === 0) {
-        console.log('장소 후보가 없습니다.');
-        return;
-    }
-    if (!window.naver?.maps) {
-        console.error('네이버 지도 API 로드 실패');
-        return;
-    }
-
-    const map = window.map;
-    if (!map) {
-        console.error('지도가 초기화되지 않았습니다.');
-        return;
-    }
-
-    // 기존 마커 모두 제거
-    if (window.markers && Array.isArray(window.markers)) {
-        window.markers.forEach(m => m.setMap(null));
-    }
-    window.markers = [];
-
-    for (const placeName of placeCandidates) {
-        try {
-            const response = await fetch('/search-place?query=' + encodeURIComponent(placeName));
-            const data = await response.json();
-            
-            if (!data.items || data.items.length === 0) {
-                console.log(`장소를 찾을 수 없습니다: ${placeName}`);
-                continue;
-            }
-            
-            const item = data.items[0];
-            const lng = parseFloat(item.mapx) / 1e7;
-            const lat = parseFloat(item.mapy) / 1e7;
-            
-            const marker = new naver.maps.Marker({
-                position: new naver.maps.LatLng(lat, lng),
-                map: map,
-                title: placeName
-            });
-            
-            window.markers.push(marker);
-            
-            // 첫 번째 마커는 지도 중심 이동
-            if (window.markers.length === 1) {
-                map.setCenter(new naver.maps.LatLng(lat, lng));
-                map.setZoom(15);
-            }
-            
-            console.log(`마커 추가됨: ${placeName} (${lat}, ${lng})`);
-        } catch (error) {
-            console.error(`장소 검색 실패: ${placeName}`, error);
-        }
-    }
-    
-    console.log(`총 ${window.markers.length}개의 마커가 추가되었습니다.`);
-}
-
 // 주소 전처리 함수
 function preprocessText(text) {
     return text
@@ -859,6 +804,10 @@ async function extractLocations(text) {
         markers = [];
         infoWindows = [];
 
+        // 결과 표시
+        resultContainer.style.display = 'block';
+        locationList.innerHTML = '';
+
         if (data.locations && data.locations.length > 0) {
             // 지도 중심점을 첫 번째 위치로 설정
             if (data.locations[0].coordinates) {
@@ -875,134 +824,73 @@ async function extractLocations(text) {
                     const marker = createMarker(location);
                     if (marker) markers.push(marker);
                 }
+
+                // 리스트 아이템 생성 (location-card 형식으로 통합)
+                const li = document.createElement('li');
+                li.className = 'list-group-item location-card';
+                li.innerHTML = `
+                    <div class="location-card-content">
+                        <div class="location-header">
+                            <div class="location-icon">
+                                <i class="bi bi-geo-alt-fill"></i>
+                            </div>
+                            <div class="location-info">
+                                <h5 class="location-name">${location.name}</h5>
+                                <p class="location-address">
+                                    ${location.coordinates && location.coordinates.address ? 
+                                        location.coordinates.address : '도로명 주소 정보를 가져오는 중...'}
+                                </p>
+                                ${location.type ? `<span class="location-type">${location.type}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="location-actions">
+                            <button class="btn btn-sm btn-success save-btn">
+                                <i class="bi bi-bookmark-plus"></i> 저장
+                            </button>
+                            ${location.coordinates ? 
+                                `<button class="btn btn-sm btn-outline-primary map-btn" onclick="showOnMap('${location.name}', ${location.coordinates.lat}, ${location.coordinates.lng})">
+                                    <i class="bi bi-map"></i> 지도에서 보기
+                                </button>` 
+                                : `<button class="btn btn-sm btn-outline-primary map-btn" onclick="searchAndShowOnMap('${location.name}')">
+                                    <i class="bi bi-map"></i> 지도에서 보기
+                                </button>`
+                            }
+                        </div>
+                    </div>
+                `;
+                locationList.appendChild(li);
+                
+                // 저장 버튼 이벤트 추가
+                const saveBtn = li.querySelector('.save-btn');
+                saveBtn.addEventListener('click', () => {
+                    savePlace(location.name, location.type, location.coordinates);
+                });
             });
-            showResults(data.locations);
         } else {
-            showResults([]);
+            locationList.innerHTML = '<li class="list-group-item">추출된 장소가 없습니다.</li>';
         }
 
         return data.locations;
     } catch (error) {
         console.error('위치 정보 추출 중 오류:', error);
-        showResults([]);
+        resultContainer.style.display = 'block';
+        locationList.innerHTML = `<li class="list-group-item text-danger">${error.message}</li>`;
         return [];
     }
 }
 
 // 결과 표시
-function showResults(locations) {
-    resultContainer.style.display = 'block';
-    locationList.innerHTML = '';
+function showResults(places) {
+  // 필요 시 최초 렌더 지점에서만 초기화:
+  // beginNewPlaceRenderCycle();
 
-    if (!locations || locations.length === 0) {
-        locationList.innerHTML = '<li class="list-group-item">추출된 장소가 없습니다.</li>';
-        return;
-    }
-
-    // 문자열 배열(장소명)일 경우
-    if (typeof locations[0] === 'string') {
-        locations.forEach(place => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item location-card';
-            li.innerHTML = `
-                <div class="location-card-content">
-                    <div class="location-header">
-                        <div class="location-icon">
-                            <i class="bi bi-geo-alt-fill"></i>
-                        </div>
-                        <div class="location-info">
-                            <h5 class="location-name">${place}</h5>
-                            <p class="location-address">도로명 주소 정보를 가져오는 중...</p>
-                        </div>
-                    </div>
-                    <div class="location-actions">
-                        <button class="btn btn-sm btn-success save-btn">
-                            <i class="bi bi-bookmark-plus"></i> 저장
-                        </button>
-                        <button class="btn btn-sm btn-outline-primary map-btn" onclick="searchAndShowOnMap('${place}')">
-                            <i class="bi bi-map"></i> 지도에서 보기
-                        </button>
-                    </div>
-                </div>
-            `;
-            locationList.appendChild(li);
-            
-            // 저장 버튼 이벤트 추가
-            const saveBtn = li.querySelector('.save-btn');
-            saveBtn.addEventListener('click', async () => {
-                // 네이버 API로 장소 정보 검색
-                try {
-                    const response = await fetch(`/search-place?query=${encodeURIComponent(place)}`);
-                    const data = await response.json();
-                    
-                    if (data.items && data.items.length > 0) {
-                        const item = data.items[0];
-                        const lat = parseFloat(item.mapy) / 1e7;
-                        const lng = parseFloat(item.mapx) / 1e7;
-                        
-                        const coordinates = {
-                            lat: lat,
-                            lng: lng,
-                            address: item.roadAddress || item.address || ''
-                        };
-                        
-                        savePlace(place, item.category || '', coordinates);
-                    } else {
-                        // 검색 결과가 없으면 기본 정보로 저장
-                        savePlace(place);
-                    }
-                } catch (error) {
-                    console.error('장소 검색 실패:', error);
-                    // 에러가 발생해도 기본 정보로 저장
-                    savePlace(place);
-                }
-            });
-        });
-        return;
-    }
-
-    // 객체 배열(기존 방식)일 경우
-    locations.forEach(location => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item location-card';
-        li.innerHTML = `
-            <div class="location-card-content">
-                <div class="location-header">
-                    <div class="location-icon">
-                        <i class="bi bi-geo-alt-fill"></i>
-                    </div>
-                    <div class="location-info">
-                        <h5 class="location-name">${location.name}</h5>
-                        <p class="location-address">
-                            ${location.coordinates && location.coordinates.address ? 
-                                location.coordinates.address : '도로명 주소 정보를 가져오는 중...'}
-                        </p>
-                        ${location.type ? `<span class="location-type">${location.type}</span>` : ''}
-                    </div>
-                </div>
-                <div class="location-actions">
-                    <button class="btn btn-sm btn-success save-btn">
-                        <i class="bi bi-bookmark-plus"></i> 저장
-                    </button>
-                    ${location.coordinates ? 
-                        `<button class="btn btn-sm btn-outline-primary map-btn" onclick="showOnMap('${location.name}', ${location.coordinates.lat}, ${location.coordinates.lng})">
-                            <i class="bi bi-map"></i> 지도에서 보기
-                        </button>` 
-                        : `<button class="btn btn-sm btn-outline-primary map-btn" onclick="searchAndShowOnMap('${location.name}')">
-                            <i class="bi bi-map"></i> 지도에서 보기
-                        </button>`
-                    }
-                </div>
-            </div>
-        `;
-        locationList.appendChild(li);
-        
-        // 저장 버튼 이벤트 추가
-        const saveBtn = li.querySelector('.save-btn');
-        saveBtn.addEventListener('click', () => {
-            savePlace(location.name, location.type, location.coordinates);
-        });
-    });
+  places.forEach(p => {
+    // p가 문자열/객체 혼재해도 동작하도록 안전 처리
+    const name = (typeof p === 'string') ? p : (p.name || '');
+    const address = (typeof p === 'object' && p.address) ? p.address : '';
+    const score = (typeof p === 'object' && 'score' in p) ? p.score : null;
+    appendPlaceCard(name, address, score);
+  });
 }
 
 // 장소 저장 함수
@@ -1058,7 +946,7 @@ function showOnMap(placeName, lat, lng, address = '') {
         }
         window.markers = [];
         
-        // 새로운 마커 생성 (보라색 커스텀 마커)
+        // 새로운 마커 생성
         const marker = new naver.maps.Marker({
             position: new naver.maps.LatLng(lat, lng),
             map: window.map,
@@ -1069,7 +957,6 @@ function showOnMap(placeName, lat, lng, address = '') {
             }
         });
         
-        // 마커를 전역 배열에 추가
         window.markers.push(marker);
         
         // 지도 중심 이동
@@ -1093,23 +980,16 @@ function showOnMap(placeName, lat, lng, address = '') {
             pixelOffset: new naver.maps.Point(0, -20)
         });
         
-        // 정보창을 전역 배열에 추가
-        if (!window.infoWindows) window.infoWindows = [];
-        window.infoWindows.push(infoWindow);
-        
         infoWindow.open(window.map, marker);
         
         // 마커 클릭 시 정보창 토글
         naver.maps.Event.addListener(marker, 'click', function() {
-            // 다른 정보창들 닫기
-            window.infoWindows.forEach(iw => iw.close());
-            // 현재 정보창 열기
-            infoWindow.open(window.map, marker);
+            if (infoWindow.getMap()) {
+                infoWindow.close();
+            } else {
+                infoWindow.open(window.map, marker);
+            }
         });
-        
-        console.log(`마커 표시 완료: ${placeName} (${lat}, ${lng})`);
-    } else {
-        console.error('네이버 지도 API 또는 지도가 초기화되지 않았습니다.');
     }
 }
 
@@ -1461,35 +1341,7 @@ async function findBestPlaceFromText(mainText, hashtagsText='') {
       body: JSON.stringify(payload)
     });
     const data = await resp.json();
-    try {
-      if (data && data.status === 'ok' && data.place) {
-        const lng = data.place.mapx ? (parseFloat(data.place.mapx) / 1e7) : null;
-        const lat = data.place.mapy ? (parseFloat(data.place.mapy) / 1e7) : null;
-        const resultArray = [
-          {
-            name: data.place.name,
-            type: data.place.category || '',
-            coordinates: {
-              lat: lat,
-              lng: lng,
-              address: data.place.address || ''
-            }
-          }
-        ];
-        showResults(resultArray);
-      } else if (data && data.status === 'ambiguous' && Array.isArray(data.top3)) {
-        const resultArray = data.top3.map(item => ({
-          name: item.name,
-          type: item.category || '',
-          coordinates: { address: item.address || '' }
-        }));
-        showResults(resultArray);
-      } else {
-        showResults([]);
-      }
-    } catch (err) {
-      console.error('render via showResults failed:', err);
-    }
+    renderBestPlaceResult(data);
   } catch (e) {
     console.error('findBestPlaceFromText error:', e);
   }
@@ -1497,11 +1349,28 @@ async function findBestPlaceFromText(mainText, hashtagsText='') {
 
 // UI 렌더(자동 확정 또는 Top3)
 function renderBestPlaceResult(data) {
+  if (data && data.status === 'ok' && data.place) {
+    const pl = data.place;
+    appendPlaceCard(pl.name, pl.address ?? '', pl.score ?? null);
+    return;
+  }
+  if (data && data.status === 'ambiguous' && Array.isArray(data.top3)) {
+    data.top3.forEach(item => {
+      appendPlaceCard(item.name, item.address ?? '', item.score ?? null);
+    });
+    return;
+  }
+  // fallback
   const listEl = document.getElementById('locationList');
-  const resultBox = document.querySelector('.result-container');
-  if (!listEl || !resultBox) return;
+  if (listEl) {
+    const li = document.createElement('li');
+    li.className = 'list-group-item text-muted';
+    li.textContent = '관련도 높은 후보를 찾지 못했습니다.';
+    listEl.appendChild(li);
+  }
+}
 
-  const makeLi = (name, addr, reason='') => {
+
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between align-items-start';
     li.innerHTML = `
@@ -1588,12 +1457,14 @@ function renderBestPlaceResult(data) {
 
 
 async function searchPairsAndRender(pairs) {
+  // 결과 영역 초기화
+  resultContainer.style.display = 'block';
+  locationList.innerHTML = '';
+
   // 기존 마커 제거
   if (window.markers) window.markers.forEach(m => m.setMap(null));
   window.markers = [];
   window.infoWindows = [];
-
-  const results = [];
 
   for (const p of pairs) {
     // 1순위: "가게명 + 주소", 2순위: "가게명", 3순위: "주소"
@@ -1615,26 +1486,121 @@ async function searchPairsAndRender(pairs) {
       } catch (e) {}
     }
 
+    // 리스트 카드 생성
+    const li = document.createElement('li');
+    li.className = 'list-group-item location-card';
     const displayAddr = (item?.roadAddress || item?.address || p.address || '').trim();
+    li.innerHTML = `
+      <div class="location-card-content">
+        <div class="location-header">
+          <div class="location-icon"><i class="bi bi-geo-alt-fill"></i></div>
+          <div class="location-info">
+            <h5 class="location-name">${p.name}</h5>
+            <p class="location-address">${displayAddr || '주소 확인 중...'}</p>
+          </div>
+        </div>
+        <div class="location-actions">
+          <button class="btn btn-sm btn-success save-btn"><i class="bi bi-bookmark-plus"></i> 저장</button>
+          <button class="btn btn-sm btn-outline-primary map-btn"><i class="bi bi-map"></i> 지도에서 보기</button>
+        </div>
+      </div>
+    `;
+    locationList.appendChild(li);
 
     // 지도 마커
     if (item?.mapx && item?.mapy && window.naver?.maps && window.map) {
       const lng = parseFloat(item.mapx) / 1e7;
       const lat = parseFloat(item.mapy) / 1e7;
       markOnMap(p.name, lat, lng, displayAddr); // 이미 있는 함수 재사용
+    } else {
+      // 좌표가 없으면 눌렀을 때 검색해서 보여주기
+      li.querySelector('.map-btn').addEventListener('click', () => searchAndShowOnMap(`${p.name} ${p.address}`));
     }
 
-    // 결과 배열에 추가
-    results.push({
-      name: p.name,
-      type: item?.category || '',
-      coordinates: {
-        lat: item?.mapy ? (parseFloat(item.mapy) / 1e7) : null,
-        lng: item?.mapx ? (parseFloat(item.mapx) / 1e7) : null,
-        address: displayAddr || ''
+    // 저장 버튼
+    li.querySelector('.save-btn').addEventListener('click', async () => {
+      if (item) {
+        const lat = parseFloat(item.mapy) / 1e7;
+        const lng = parseFloat(item.mapx) / 1e7;
+        const coordinates = { lat, lng, address: displayAddr };
+        savePlace(p.name, item.category || '', coordinates);
+      } else {
+        // 검색 실패 시 기본 정보라도 저장
+        savePlace(p.name, '', { lat: null, lng: null, address: p.address });
       }
     });
   }
-
-  showResults(results);
 }
+
+// ====== [공용 카드형 렌더 유틸] 시작 ======
+const _renderedKeys = new Set();
+
+function beginNewPlaceRenderCycle() {
+  const listEl = document.getElementById('locationList');
+  if (listEl) listEl.innerHTML = '';
+  _renderedKeys.clear();
+}
+
+function appendPlaceCard(name, address = '', score = null) {
+  const listEl = document.getElementById('locationList');
+  const resultBox = document.querySelector('.result-container');
+  if (!listEl || !resultBox) return;
+
+  resultBox.style.display = 'block';
+
+  // 중복 방지(이름+주소 기준)
+  const key = `${(name || '').trim().toLowerCase()}|${(address || '').trim().toLowerCase()}`;
+  if (_renderedKeys.has(key)) return;
+  _renderedKeys.add(key);
+
+  const li = document.createElement('li');
+  li.className = 'list-group-item location-card';
+  li.innerHTML = `
+    <div class="location-card-content">
+      <div class="location-header">
+        <div class="location-icon"><i class="bi bi-geo-alt-fill"></i></div>
+        <div class="location-info">
+          <h5 class="location-name">${name}</h5>
+          <p class="location-address">${address || '도로명 주소 정보를 가져오는 중...'}</p>
+          ${score != null ? `<span class="location-type">점수 ${score}</span>` : ''}
+        </div>
+      </div>
+      <div class="location-actions">
+        <button class="btn btn-sm btn-success save-btn">
+          <i class="bi bi-bookmark-plus"></i> 저장
+        </button>
+        <button class="btn btn-sm btn-outline-primary map-btn">
+          <i class="bi bi-map"></i> 지도에서 보기
+        </button>
+      </div>
+    </div>
+  `;
+  listEl.appendChild(li);
+
+  // 저장: 좌표/주소 보강 후 savePlace 호출
+  li.querySelector('.save-btn').addEventListener('click', async () => {
+    try {
+      const resp = await fetch(`/search-place?query=${encodeURIComponent(name)}`);
+      const s = await resp.json();
+      if (s.items && s.items[0]) {
+        const it = s.items[0];
+        const coordinates = {
+          lat: parseFloat(it.mapy) / 1e7,
+          lng: parseFloat(it.mapx) / 1e7,
+          address: it.roadAddress || it.address || address || ''
+        };
+        savePlace(name, '', coordinates);
+      } else {
+        savePlace(name);
+      }
+    } catch {
+      savePlace(name);
+    }
+  });
+
+  // 지도에서 보기
+  li.querySelector('.map-btn').addEventListener('click', () => {
+    searchAndShowOnMap(name);
+  });
+}
+// ====== [공용 카드형 렌더 유틸] 끝 ======

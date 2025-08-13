@@ -1,11 +1,9 @@
 console.log("### BOOT server.js ###");
 
-
 console.log("### RUNNING SERVER (WeatherAPI build) ###");
 console.log("### BOOT: server.js entered ###");
 process.on("exit", (code) => console.log("### EXIT:", code));
 setTimeout(() => console.log("### still alive after 2s ###"), 2000);
-
 
 const cheerio = require('cheerio');
 const multer = require('multer');
@@ -15,25 +13,122 @@ const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const path = require("path");
-
+const session = require("express-session");
+const FileStore = require("session-file-store")(session);
+const bcrypt = require("bcrypt");
+const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-
-// 미들웨어 설정
+// ─────────────────────────────────────────────
+// Parsers & CORS
+// ─────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // 현재 디렉토리의 모든 파일을 정적 파일로 제공
+app.use(express.urlencoded({ extended: true }));
 
-// 기본 라우트 추가
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index-map.html'));
+// ─────────────────────────────────────────────
+// Sessions (FileStore)
+// ─────────────────────────────────────────────
+const sessionDir = path.join(__dirname, "sessions");
+if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+app.use(session({
+  store: new FileStore({ path: sessionDir, retries: 1 }),
+  secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, sameSite: "lax", secure: false, maxAge: 1000*60*60*24*7 }
+}));
+
+// ─────────────────────────────────────────────
+// SQLite (users)
+// ─────────────────────────────────────────────
+const db = new sqlite3.Database(path.join(__dirname, "auth.db"));
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS users(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`);
+});
+const findUserByEmail = (email) => new Promise((resolve, reject)=>{
+  db.get(`SELECT * FROM users WHERE email=?`, [email], (err,row)=>{
+    if (err) reject(err); else resolve(row);
+  });
+});
+const createUser = async (email, password) => {
+  const hash = await bcrypt.hash(password, 10);
+  const createdAt = new Date().toISOString();
+  return new Promise((resolve, reject)=>{
+    db.run(`INSERT INTO users(email,password_hash,created_at) VALUES(?,?,?)`,
+      [email, hash, createdAt],
+      function(err){ if (err) reject(err); else resolve({ id: this.lastID, email }); }
+    );
+  });
+};
+
+// ─────────────────────────────────────────────
+// Auth routes
+// ─────────────────────────────────────────────
+app.get("/auth/me", (req,res)=>{
+  if (req.session?.user) return res.json({ ok:true, user: req.session.user });
+  return res.status(401).json({ ok:false });
+});
+app.post("/auth/register", async (req,res)=>{
+  try{
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ ok:false, error:"email/password required" });
+    const exists = await findUserByEmail(email);
+    if (exists) return res.status(409).json({ ok:false, error:"already_exists" });
+    const user = await createUser(email, password);
+    req.session.user = { id: user.id, email: user.email };
+    return res.json({ ok:true });
+  }catch(e){ return res.status(500).json({ ok:false, error:"register_failed" }); }
+});
+app.post("/auth/login", async (req,res)=>{
+  try{
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ ok:false, error:"email/password required" });
+    const row = await findUserByEmail(email);
+    if (!row) return res.status(401).json({ ok:false, error:"invalid" });
+    const ok = await bcrypt.compare(password, row.password_hash);
+    if (!ok) return res.status(401).json({ ok:false, error:"invalid" });
+    req.session.user = { id: row.id, email: row.email };
+    return res.json({ ok:true });
+  }catch(e){ return res.status(500).json({ ok:false, error:"login_failed" }); }
+});
+app.post("/auth/logout", (req,res)=>{
+  req.session.destroy(()=> res.json({ ok:true }));
 });
 
-app.get('/index-map.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index-map.html'));
-});
+// ─────────────────────────────────────────────
+// Login gate
+// ─────────────────────────────────────────────
+function requireLogin(req, res, next){
+  if (req.session?.user) return next();
+  const wantsJSON = (req.headers.accept||"").includes("application/json") || req.path.startsWith("/api");
+  if (wantsJSON) return res.status(401).json({ ok:false, error:"unauthenticated" });
+  const nextUrl = encodeURIComponent(req.originalUrl || "/app");
+  return res.redirect(`/login?next=${nextUrl}`);
+}
 
+// Public login/register pages
+app.get("/login", (req,res)=> res.sendFile(path.join(__dirname,"login.html")));
+app.get("/register", (req,res)=> res.sendFile(path.join(__dirname,"register.html")));
+
+// Protect main app entry (index-map.html)
+app.get("/app", requireLogin, (req,res)=> res.sendFile(path.join(__dirname,"index-map.html")));
+app.get("/index-map.html", requireLogin, (req,res)=> res.sendFile(path.join(__dirname,"index-map.html")));
+
+// Static files (with index disabled to prevent bypassing login gate)
+app.use(express.static(path.join(__dirname), { index: false }));
+
+// Default redirect to app
+app.get("/", (req,res)=> res.redirect("/app"));
+
+// Health check (public)
 app.get("/health", (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
@@ -316,8 +411,6 @@ app.get("/weather", async (req, res) => {
   }
 });
 
-
-
 // 프로세스 전역 에러 로깅
 process.on("uncaughtException", (e) => {
   console.error("UNCAUGHT:", e);
@@ -326,7 +419,234 @@ process.on("unhandledRejection", (e) => {
   console.error("UNHANDLED:", e);
 });
 
-const PORT = process.env.PORT || 3000;
+// ======================= 상호 자동 랭킹 라우트 =========================
+const jaro = require('jaro-winkler');
+
+const stringSimilarity = require('string-similarity');
+
+// 한글 초성 추출
+function cho(str='') {
+  const CHO = [ 'ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ' ];
+  let out = '';
+  for (const ch of (str || '').normalize('NFC')) {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if (code >= 0 && code <= 11171) out += CHO[Math.floor(code / 588)];
+    else if (/[A-Za-z]/.test(ch)) out += ch.toLowerCase();
+  }
+  return out;
+}
+function tokenSet(s='') {
+  return new Set(
+    (s || '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/).filter(Boolean)
+  );
+}
+function jaccard(a='', b='') {
+  const A = tokenSet(a), B = tokenSet(b);
+  const inter = new Set([...A].filter(x => B.has(x))).size;
+  const union = new Set([...A, ...B]).size || 1;
+  return inter / union;
+}
+function extractAreaHints(text='') {
+  const hints = new Set();
+  const re = /(서울|경기|인천|부산|대전|대구|광주|울산|세종)|([가-힣]{1,6}(구|군))|([A-Za-z가-힣]{1,10}역)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) hints.add(m[0]);
+  return [...hints];
+}
+function extractPhones(text='') {
+  return [...new Set((text.match(/0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}/g) || []))];
+}
+function extractStrongNames(lines=[], tags=[]) {
+  const cand = new Set();
+  const push = (s) => {
+    s = (s||'').trim().replace(/["""']/g,'').replace(/\s{2,}/g,' ');
+    if (s.length >= 2) {
+      cand.add(s);
+      cand.add(s.replace(/(본점|역점|지점|점)$/, ''));
+    }
+  };
+  (tags || []).forEach(t => push(t.replace(/^#/, '')));
+  (lines || []).forEach(line => {
+    if (/(카페|맛집|베이커리|라멘|스시|펍|와인|브런치|디저트)/.test(line)) push(line);
+    const head = line.split(/[(:\-|]/)[0];
+    if (head && head.length >= 2) push(head);
+  });
+  return [...new Set([...cand].map(x => x.trim()).filter(x => x && x.length <= 30))];
+}
+function scoreCandidate(c, ctx) {
+  let score = 0, reasons = [];
+  const nameScores = (ctx.strongNames || []).map(n => {
+    const base = Math.max(
+      jaro(n, c.name || ''),
+      stringSimilarity.compareTwoStrings(n, c.name || ''),
+      jaccard(n, c.name || '')
+    );
+    const choScore = (cho(n) && cho(c.name)) ? stringSimilarity.compareTwoStrings(cho(n), cho(c.name)) : 0;
+    return Math.max(base, choScore * 0.9);
+  });
+  const nameScore = Math.max(0, ...nameScores, 0);
+  score += nameScore * 50;
+  if (nameScore > 0.85) reasons.push(`상호 유사도↑(${nameScore.toFixed(2)})`);
+
+  const catHit = (ctx.textKeywords || []).some(k => (c.category || '').includes(k));
+  if (catHit) { score += 10; reasons.push('카테고리 키워드 일치'); }
+
+  const addrHit = (ctx.areaHints || []).some(h => (c.address || '').includes(h));
+  if (addrHit) { score += 12; reasons.push('구/동/역 힌트 일치'); }
+
+  const phoneHit = (ctx.phoneHints || []).some(p => c.phone && c.phone.replace(/\D/g,'').includes(p.replace(/\D/g,'')));
+  if (phoneHit) { score += 8; reasons.push('전화번호 일치'); }
+
+  const overlap = (c.menuKeywords || []).filter(m => (ctx.menuHints || []).includes(m)).length;
+  if (overlap) { score += Math.min(12, 4 * overlap); reasons.push('메뉴 키워드 겹침'); }
+
+  if (ctx.sourceBoost?.[c.name]) { score += ctx.sourceBoost[c.name]; reasons.push('링크 시그널'); }
+
+  return { score, reasons };
+}
+function rankCandidates(candidates=[], ctx={}) {
+  const ranked = candidates.map(c => ({ ...c, ...scoreCandidate(c, ctx) }))
+                           .sort((a,b)=> b.score - a.score);
+  if (ranked.length >= 2) {
+    const [a,b] = ranked;
+    if (a.score >= 45 && (a.score - b.score) / Math.max(b.score,1) >= 0.12) {
+      return { pick: a, ranked };
+    }
+  } else if (ranked.length === 1 && ranked[0].score >= 45) {
+    return { pick: ranked[0], ranked };
+  }
+  return { pick: null, ranked };
+}
+async function naverLocalSearch(query, axios, clientId, clientSecret) {
+  const url = 'https://openapi.naver.com/v1/search/local.json';
+  const resp = await axios.get(url, {
+    params: { query, display: 5, start: 1, sort: 'random' },
+    headers: {
+      'X-Naver-Client-Id': clientId,
+      'X-Naver-Client-Secret': clientSecret
+    },
+    timeout: 7000
+  });
+  return (resp.data?.items || []).map(it => ({
+    name: (it.title || '').replace(/<[^>]+>/g,''),
+    category: it.category || '',
+    address: it.address || it.roadAddress || '',
+    phone: it.telephone || '',
+    link: it.link || '',
+    mapx: it.mapx, mapy: it.mapy
+  }));
+}
+function dedupe(cands) {
+  const seen = new Set();
+  const out = [];
+  for (const c of cands) {
+    const key = `${(c.name||'').trim()}|${(c.address||'').trim()}`;
+    if (!seen.has(key)) { seen.add(key); out.push(c); }
+  }
+  return out;
+}
+
+/**
+ * POST /api/findBestPlace
+ * body: { ocrText?, linkTitle?, linkDesc?, instaCaption?, hashtags?, textKeywords?, menuHints?, sourceBoostMap? }
+ */
+app.post('/api/findBestPlace', async (req, res) => {
+  try {
+    const {
+      ocrText = '',
+      linkTitle = '',
+      linkDesc = '',
+      instaCaption = '',
+      hashtags = '',
+      textKeywords,
+      menuHints,
+      sourceBoostMap
+    } = req.body || {};
+
+    const allText = [ocrText, linkTitle, linkDesc, instaCaption, hashtags].filter(Boolean).join('\n');
+    const ocrLines = (ocrText || '').split(/\n/).map(s => s.trim()).filter(Boolean);
+
+    const ctx = {
+      strongNames: extractStrongNames(ocrLines, (hashtags || '').split(/\s+/)),
+      textKeywords: (textKeywords && textKeywords.length) ? textKeywords
+                    : ['카페','베이커리','브런치','라멘','스시','와인바','디저트','펍','바','버거','피자','파스타','한식','중식','양식'],
+      areaHints: extractAreaHints(allText),
+      phoneHints: extractPhones(allText),
+      menuHints: menuHints || ['말차','크루아상','티라미수','라떼','규동','와인','스콘','케이크'],
+      sourceBoost: sourceBoostMap || {}
+    };
+
+    // 네이버 키: 기존 /search-place에 있는 하드코딩 값 재사용
+    const clientId = 'dv09yJvf1T8W4_pyPYjs';
+    const clientSecret = 'k4ncKS6rkV';
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: '네이버 API 키가 없습니다.' });
+    }
+
+    // 검색 쿼리 구성
+    let baseQueries = ctx.strongNames.slice(0,5);
+    if (baseQueries.length === 0) {
+      const words = (allText.replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(w=>w.length>=2)).slice(0,20);
+      baseQueries = [words.join(' ')];
+    }
+    const areaTerms = ctx.areaHints.slice(0,2);
+    const queries = [];
+    for (const q of baseQueries.slice(0,5)) {
+      if (areaTerms.length) areaTerms.forEach(h => queries.push(`${q} ${h}`));
+      else queries.push(q);
+    }
+    if (queries.length === 0 && allText) queries.push(allText.slice(0,30));
+
+    // 후보 수집
+    let allCandidates = [];
+    for (const q of queries.slice(0,8)) {
+      try {
+        const items = await naverLocalSearch(q, axios, clientId, clientSecret);
+        allCandidates.push(...items);
+      } catch (e) { /* 개별 실패 무시 */ }
+    }
+    allCandidates = dedupe(allCandidates);
+    if (allCandidates.length === 0) {
+      return res.json({ status: 'no_candidates', message: '검색 후보가 없습니다.', debug: { queries, ctx_preview: { strongNames: ctx.strongNames, areaHints: ctx.areaHints } } });
+    }
+
+    // 랭킹
+    const { pick, ranked } = rankCandidates(allCandidates, ctx);
+    if (pick) {
+      return res.json({
+        status: 'ok',
+        place: {
+          name: pick.name, address: pick.address, category: pick.category,
+          phone: pick.phone, link: pick.link, mapx: pick.mapx, mapy: pick.mapy
+        },
+        reasons: pick.reasons,
+        debug: { queries, ctx_preview: { strongNames: ctx.strongNames, areaHints: ctx.areaHints, phoneHints: ctx.phoneHints } }
+      });
+    } else {
+      return res.json({
+        status: 'ambiguous',
+        top3: ranked.slice(0,3).map(r => ({
+          name: r.name, address: r.address, category: r.category,
+          score: Math.round(r.score), reasons: r.reasons, link: r.link
+        })),
+        debug: { queries, ctx_preview: { strongNames: ctx.strongNames, areaHints: ctx.areaHints, phoneHints: ctx.phoneHints } }
+      });
+    }
+  } catch (err) {
+    const code = err?.response?.status || 500;
+    const data = err?.response?.data;
+    return res.status(code).json({
+      error: 'findBestPlace_error',
+      message: err.message,
+      naver: data || null
+    });
+  }
+});
+// ===================== /상호 자동 랭킹 라우트 끝 =======================
+
 app.listen(PORT, () => console.log(`### Server is running on http://localhost:${PORT}`));
 
 console.log("### BOOT: server.js entered ###");

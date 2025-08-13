@@ -68,9 +68,10 @@ db.serialize(() => {
     created_at TEXT NOT NULL
   )`);
   
-  // 기존 사용자를 위한 닉네임 마이그레이션
+  // 기존 사용자를 위한 닉네임 마이그레이션 (새 사용자는 건드리지 않음)
   db.run(`ALTER TABLE users ADD COLUMN nickname TEXT`);
-  db.run(`UPDATE users SET nickname = '사용자' || id WHERE nickname IS NULL OR nickname = ''`);
+  // nickname 컬럼이 비어있는 기존 사용자만 업데이트 (새 사용자 보호)
+  db.run(`UPDATE users SET nickname = '사용자' || id WHERE nickname IS NULL OR nickname = '' OR nickname = 'undefined' OR nickname = 'null'`);
   
   // ─────────────────────────────────────────────
   // DB: places 테이블 (users 바로 아래에 두세요)

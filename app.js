@@ -1,5 +1,5 @@
 // DOM이 로드된 후 실행
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // DOM 요소
     const imageInput = document.getElementById('imageInput');
     const urlInput = document.getElementById('urlInput');
@@ -68,7 +68,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 나의 장소 초기화
-    myPlaces = loadMyPlaces();
     myPlaceListEl = document.getElementById('myPlaceList');
     myListSortByEl = document.getElementById('myListSortBy');
     
@@ -77,8 +76,33 @@ document.addEventListener('DOMContentLoaded', function() {
         myListSortByEl.addEventListener('change', renderMyPlaces);
     }
     
-    // 초기 렌더링
-    renderMyPlaces();
+    // 로그인 사용자 확인 → 마이그레이션 → 목록 초기 로드
+    CURRENT_USER = await fetchCurrentUser();
+    if (CURRENT_USER) {
+        await migrateLocalToServerIfNeeded();
+        await refreshMyPlacesFromServer();
+    } else {
+        myPlaces = loadMyPlaces();
+        renderMyPlaces();
+    }
+    
+    // 로그아웃 버튼 이벤트 리스너 추가
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/auth/logout', { method: 'POST' });
+                if (response.ok) {
+                    // 로그아웃 성공 시 로그인 페이지로 리다이렉트
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('로그아웃 실패:', error);
+                // 에러가 발생해도 로그인 페이지로 이동
+                window.location.href = '/';
+            }
+        });
+    }
 });
 
 // 이미지 파일 처리 함수
@@ -1090,6 +1114,7 @@ const MY_PLACES_KEY = 'myPlaces:v1';
 let myPlaces = [];
 let myPlaceListEl = null;
 let myListSortByEl = null;
+let CURRENT_USER = null; // 로그인 사용자 정보
 
 function loadMyPlaces() {
   try {
@@ -1100,7 +1125,49 @@ function loadMyPlaces() {
 }
 
 function persistMyPlaces() {
+  // 비로그인 상태에서는 로컬에 저장 (기존 동작 유지)
   localStorage.setItem(MY_PLACES_KEY, JSON.stringify(myPlaces));
+}
+
+// 로그인 상태 확인
+async function fetchCurrentUser() {
+  try {
+    const r = await fetch('/auth/me');
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.user || null;
+  } catch { return null; }
+}
+
+// 최초 로그인 시: 로컬 → 서버 1회 업로드
+async function migrateLocalToServerIfNeeded() {
+  if (!CURRENT_USER) return;
+  const flagKey = `myPlaces:migrated:${CURRENT_USER.id}`;
+  if (localStorage.getItem(flagKey)) return;
+  const local = loadMyPlaces();
+  if (Array.isArray(local) && local.length) {
+    for (const p of local) {
+      try {
+        await fetch('/api/my-places', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p)
+        });
+      } catch {}
+    }
+  }
+  localStorage.setItem(flagKey, '1');
+}
+
+// 서버에서 최신 리스트 받아와 세팅
+async function refreshMyPlacesFromServer() {
+  try {
+    const r = await fetch('/api/my-places');
+    if (r.ok) {
+      myPlaces = await r.json();
+      renderMyPlaces();
+    }
+  } catch {}
 }
 
 function inferRegion(address) {
@@ -1122,7 +1189,7 @@ function inferCategory(name = '', type = '') {
   return type || '기타';
 }
 
-function upsertPlace(place) {
+async function upsertPlace(place) {
   // place: {id?, name, address, lat, lng, region, category, createdAt}
   const key = (place.name || '') + '|' + (place.address || '');
   const idx = myPlaces.findIndex(p => ((p.name||'')+'|'+(p.address||'')) === key);
@@ -1131,14 +1198,40 @@ function upsertPlace(place) {
   } else {
     myPlaces.push(place);
   }
-  persistMyPlaces();
-  renderMyPlaces();
+  
+  if (CURRENT_USER) {
+    // 서버에 업서트
+    try {
+      await fetch('/api/my-places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(myPlaces[idx >= 0 ? idx : (myPlaces.length - 1)])
+      });
+    } catch {}
+    // 서버가 단일 소스 → 새로고침
+    await refreshMyPlacesFromServer();
+  } else {
+    // 비로그인: 로컬 저장 유지
+    persistMyPlaces();
+    renderMyPlaces();
+  }
 }
 
-function removePlaceAt(i) {
-  myPlaces.splice(i, 1);
-  persistMyPlaces();
-  renderMyPlaces();
+async function removePlaceAt(i) {
+  const place = myPlaces[i];
+  if (CURRENT_USER && place.id) {
+    // 서버에서 삭제
+    try {
+      await fetch(`/api/my-places/${place.id}`, { method: 'DELETE' });
+    } catch {}
+    // 서버에서 새로고침
+    await refreshMyPlacesFromServer();
+  } else {
+    // 비로그인 또는 ID 없음: 로컬에서만 삭제
+    myPlaces.splice(i, 1);
+    persistMyPlaces();
+    renderMyPlaces();
+  }
 }
 
 function sortMyPlaces(list, sortBy) {

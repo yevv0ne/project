@@ -195,6 +195,28 @@
             transform: scale(1.02);
         }
         
+        /* 로그아웃 버튼 스타일 */
+        .logout-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .logout-container .btn {
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+            transition: all 0.2s ease;
+        }
+        
+        .logout-container .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        
         .drag-drop-content {
             color: #6f42c1;
         }
@@ -279,6 +301,13 @@
     </style>
 </head>
 <body>
+    <!-- 로그아웃 버튼 (상단 오른쪽 고정) -->
+    <div class="logout-container">
+        <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-box-arrow-right"></i> 로그아웃
+        </button>
+    </div>
+    
     <div class="container">
         <div class="upload-container">
             <div class="text-center" style="margin-bottom: 0.1rem; margin-top: 0.1rem;">

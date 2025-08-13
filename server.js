@@ -18,6 +18,20 @@ const FileStore = require("session-file-store")(session);
 const bcrypt = require("bcrypt");
 const sqlite3 = require("sqlite3").verbose();
 
+// 환경변수 로딩 (key.env 파일에서)
+try {
+  const envContent = fs.readFileSync(path.join(__dirname, 'key.env'), 'utf8');
+  envContent.split('\n').forEach(line => {
+    const [key, value] = line.split('=');
+    if (key && value && !key.startsWith('#')) {
+      process.env[key.trim()] = value.trim();
+    }
+  });
+  console.log('✅ key.env 파일 로드 완료');
+} catch (error) {
+  console.log('⚠️ key.env 파일 로드 실패, 기본값 사용');
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -51,6 +65,22 @@ db.serialize(() => {
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL
+  )`);
+  
+  // ─────────────────────────────────────────────
+  // DB: places 테이블 (users 바로 아래에 두세요)
+  // ─────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS places(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT,
+    address TEXT,
+    lat REAL,
+    lng REAL,
+    region TEXT,
+    category TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, name, address)
   )`);
 });
 const findUserByEmail = (email) => new Promise((resolve, reject)=>{
@@ -104,6 +134,70 @@ app.post("/auth/logout", (req,res)=>{
 });
 
 // ─────────────────────────────────────────────
+// My Places API (사용자별)
+// ─────────────────────────────────────────────
+app.get("/api/my-places", requireLogin, (req, res) => {
+  const uid = req.session.user.id;
+  db.all(
+    `SELECT id, name, address, lat, lng, region, category, created_at as createdAt
+     FROM places WHERE user_id=? ORDER BY datetime(created_at) DESC, id DESC`,
+    [uid],
+    (err, rows) => {
+      if (err) return res.status(500).json({ ok:false, error:"db_read_failed" });
+      res.json(rows || []);
+    }
+  );
+});
+
+app.post("/api/my-places", requireLogin, (req, res) => {
+  const uid = req.session.user.id;
+  const p = req.body || {};
+  const name = p.name || "";
+  const address = p.address || "";
+  const lat = p.lat ?? null;
+  const lng = p.lng ?? null;
+  const region = p.region || "";
+  const category = p.category || "";
+  const createdAt = p.createdAt || new Date().toISOString();
+
+  db.get(
+    `SELECT id FROM places WHERE user_id=? AND name=? AND address=?`,
+    [uid, name, address],
+    (err, row) => {
+      if (err) return res.status(500).json({ ok:false, error:"db_update_failed" });
+      if (row) {
+        db.run(
+          `UPDATE places SET lat=?, lng=?, region=?, category=?, created_at=? WHERE id=?`,
+          [lat, lng, region, category, createdAt, row.id],
+          function (e) {
+            if (e) return res.status(500).json({ ok:false, error:"db_update_failed" });
+            return res.json({ ok:true, id: row.id, mode:"update" });
+          }
+        );
+      } else {
+        db.run(
+          `INSERT INTO places(user_id,name,address,lat,lng,region,category,created_at) VALUES(?,?,?,?,?,?,?,?)`,
+          [uid, name, address, lat, lng, region, category, createdAt],
+          function (e) {
+            if (e) return res.status(500).json({ ok:false, error:"db_insert_failed" });
+            return res.json({ ok:true, id: this.lastID, mode:"insert" });
+          }
+        );
+      }
+    }
+  );
+});
+
+app.delete("/api/my-places/:id", requireLogin, (req, res) => {
+  const uid = req.session.user.id;
+  const id = Number(req.params.id);
+  db.run(`DELETE FROM places WHERE id=? AND user_id=?`, [id, uid], function (e) {
+    if (e) return res.status(500).json({ ok:false, error:"db_delete_failed" });
+    return res.json({ ok:true, deleted: this.changes });
+  });
+});
+
+// ─────────────────────────────────────────────
 // Login gate
 // ─────────────────────────────────────────────
 function requireLogin(req, res, next){
@@ -114,19 +208,30 @@ function requireLogin(req, res, next){
   return res.redirect(`/login?next=${nextUrl}`);
 }
 
-// Public login/register pages
-app.get("/login", (req,res)=> res.sendFile(path.join(__dirname,"login.html")));
-app.get("/register", (req,res)=> res.sendFile(path.join(__dirname,"register.html")));
+// 1) 루트는 항상 로그인 화면을 먼저
+app.get("/", (req, res) => {
+  res.sendFile("login.html", { root: __dirname });
+});
 
-// Protect main app entry (index-map.html)
-app.get("/app", requireLogin, (req,res)=> res.sendFile(path.join(__dirname,"index-map.html")));
-app.get("/index-map.html", requireLogin, (req,res)=> res.sendFile(path.join(__dirname,"index-map.html")));
+// 2) 공개 라우트 (항상 문자열 + root 옵션)
+app.get("/login", (req, res) => res.sendFile("login.html", { root: __dirname }));
+app.get("/register", (req, res) => res.sendFile("register.html", { root: __dirname }));
 
-// Static files (with index disabled to prevent bypassing login gate)
-app.use(express.static(path.join(__dirname), { index: false }));
+// 3) 앱 진입: 보호 라우트 (간단하고 안전하게)
+app.get(["/app", "/index-map.html"], requireLogin, (req, res) => {
+  res.sendFile("index-map.html", { root: __dirname });
+});
 
-// Default redirect to app
-app.get("/", (req,res)=> res.redirect("/app"));
+
+
+// 정적 서빙: index 자동 제공 막기 (게이트 우회 방지)
+app.use(express.static(__dirname, { index: false }));
+
+// (선택) 앱 페이지는 캐시 금지: 로그아웃 후 뒤로 가기 차단
+app.use("/app", requireLogin, (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 
 // Health check (public)
 app.get("/health", (_req, res) => {
@@ -646,6 +751,27 @@ app.post('/api/findBestPlace', async (req, res) => {
   }
 });
 // ===================== /상호 자동 랭킹 라우트 끝 =======================
+
+// 4) 와일드카드 대신 미들웨어로 처리 (모든 API 라우트 이후에 실행)
+app.use((req, res, next) => {
+  // 이미 처리된 라우트는 건너뛰기
+  if (res.headersSent) return next();
+  
+  // 로그인/회원가입/인증/정적 에셋은 제외
+  if (req.path.startsWith('/login') || 
+      req.path.startsWith('/register') || 
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/health') ||
+      req.path.startsWith('/uploads') ||
+      req.path.includes('.')) {
+    return next();
+  }
+  
+  // 나머지는 모두 로그인 필요
+  requireLogin(req, res, () => {
+    res.sendFile("index-map.html", { root: __dirname });
+  });
+});
 
 app.listen(PORT, () => console.log(`### Server is running on http://localhost:${PORT}`));
 
